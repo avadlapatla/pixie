@@ -7,7 +7,7 @@ import (
 	"io"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -39,14 +39,14 @@ func New(ctx context.Context, config Config) (*S3, error) {
 	})
 
 	// Create a custom AWS config
-	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithEndpointResolverWithOptions(customResolver),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
+	cfg, err := awsconfig.LoadDefaultConfig(ctx,
+		awsconfig.WithEndpointResolverWithOptions(customResolver),
+		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
 			config.AccessKey,
 			config.SecretKey,
 			"",
 		)),
-		config.WithRegion("us-east-1"), // MinIO doesn't care about the region
+		awsconfig.WithRegion("us-east-1"), // MinIO doesn't care about the region
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)

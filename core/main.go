@@ -12,8 +12,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/yourname/pixie/core/db"
-	"github.com/yourname/pixie/core/storage"
+	"pixie/db"
+	"pixie/storage"
 )
 
 // Config holds the application configuration
@@ -39,7 +39,7 @@ func main() {
 		S3AccessKey: getEnv("S3_ACCESS_KEY", "minio"),
 		S3SecretKey: getEnv("S3_SECRET_KEY", "minio123"),
 		S3Bucket:    getEnv("S3_BUCKET", "pixie"),
-		DatabaseURL: getEnv("DATABASE_URL", "postgres://postgres:postgres@postgres:5432/pixie?sslmode=disable"),
+		DatabaseURL: getEnv("DATABASE_URL", "postgres://pixie:pixiepass@postgres:5432/pixiedb?sslmode=disable"),
 	}
 
 	// Create a context with timeout for initialization

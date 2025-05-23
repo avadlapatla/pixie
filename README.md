@@ -31,7 +31,7 @@ Once the services are running, you can access them at:
 - **Core API**: [http://localhost:8080/healthz](http://localhost:8080/healthz)
 - **MinIO Console**: [http://localhost:9001](http://localhost:9001)
 - **PostgreSQL**: localhost:5432
-- **NATS**: localhost:4222
+- **NATS**: localhost:4222 (client), localhost:8222 (monitoring)
 
 ### API Usage Examples
 
@@ -105,7 +105,7 @@ All secrets are configured via environment variables with sensible defaults for 
 - `S3_ACCESS_KEY`: MinIO/S3 access key (default: minio)
 - `S3_SECRET_KEY`: MinIO/S3 secret key (default: minio123)
 - `S3_BUCKET`: MinIO/S3 bucket name (default: pixie)
-- `DATABASE_URL`: PostgreSQL connection string (default: postgres://postgres:postgres@postgres:5432/pixie?sslmode=disable)
+- `DATABASE_URL`: PostgreSQL connection string (default: postgres://pixie:pixiepass@postgres:5432/pixiedb?sslmode=disable)
 - `POSTGRES_USER`: PostgreSQL username (default: pixie)
 - `POSTGRES_PASSWORD`: PostgreSQL password (default: pixiepass)
 - `POSTGRES_DB`: PostgreSQL database name (default: pixiedb)

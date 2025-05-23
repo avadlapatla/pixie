@@ -1,4 +1,4 @@
-module github.com/yourname/pixie
+module pixie
 
 go 1.22
 
