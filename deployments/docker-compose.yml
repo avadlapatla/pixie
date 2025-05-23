@@ -66,6 +66,7 @@ services:
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-miniopass}
       S3_BUCKET: ${S3_BUCKET:-pixie}
       DATABASE_URL: postgres://pixie:pixiepass@postgres:5432/${POSTGRES_DB:-pixiedb}?sslmode=disable
+      NATS_URL: ${NATS_URL:-nats://nats:4222}
 
 volumes:
   postgres_data:

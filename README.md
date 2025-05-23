@@ -50,6 +50,20 @@ curl -X POST -F "file=@/path/to/your/photo.jpg" http://localhost:8080/upload
 curl -o downloaded_photo.jpg http://localhost:8080/photo/123e4567-e89b-12d3-a456-426614174000
 ```
 
+#### Delete a photo
+
+```bash
+# Delete a photo by ID
+curl -X DELETE http://localhost:8080/photo/123e4567-e89b-12d3-a456-426614174000
+```
+
+#### Watch events
+
+```bash
+# Watch events in another terminal
+docker compose exec nats nats sub "photo.*"
+```
+
 ### Default Credentials
 
 #### MinIO
@@ -111,3 +125,4 @@ All secrets are configured via environment variables with sensible defaults for 
 - `POSTGRES_DB`: PostgreSQL database name (default: pixiedb)
 - `MINIO_ROOT_USER`: MinIO root username (default: minioadmin)
 - `MINIO_ROOT_PASSWORD`: MinIO root password (default: miniopass)
+- `NATS_URL`: NATS server URL (default: nats://nats:4222)

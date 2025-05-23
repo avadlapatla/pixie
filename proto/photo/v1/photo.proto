@@ -1,0 +1,15 @@
+syntax = "proto3";
+package photo.v1;
+
+message PhotoUploaded {
+  string id = 1;
+  string filename = 2;
+  string mime = 3;
+  string s3_key = 4;
+  string created_at = 5; // RFC3339
+}
+
+message PhotoDeleted {
+  string id = 1;
+  string deleted_at = 2; // RFC3339
+}

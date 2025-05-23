@@ -123,3 +123,16 @@ func (s *S3) GetObject(ctx context.Context, key string) (*s3.GetObjectOutput, er
 
 	return result, nil
 }
+
+// DeleteObject deletes an object from S3
+func (s *S3) DeleteObject(ctx context.Context, key string) error {
+	_, err := s.Client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(s.BucketName),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete object: %w", err)
+	}
+
+	return nil
+}

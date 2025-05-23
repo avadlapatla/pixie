@@ -98,3 +98,21 @@ func (db *DB) GetPhoto(ctx context.Context, id string) (string, string, error) {
 
 	return s3Key, mime, nil
 }
+
+// DeletePhoto deletes a photo's metadata from the database
+func (db *DB) DeletePhoto(ctx context.Context, id string) error {
+	result, err := db.Pool.Exec(ctx, `
+		DELETE FROM photos WHERE id = $1
+	`, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete photo: %w", err)
+	}
+
+	// Check if any rows were affected
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("photo not found: %s", id)
+	}
+
+	return nil
+}
