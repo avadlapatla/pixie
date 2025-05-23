@@ -142,6 +142,40 @@ Pixie supports dynamic loading of plugins to extend its functionality. Here's ho
    
    Run `make dev` to start Pixie with your plugin loaded.
 
+## Authentication
+
+Pixie supports JWT authentication via the auth-jwt plugin. The plugin validates JWT tokens using either HS256 or RS256 algorithms.
+
+```bash
+# Get a test token
+TOKEN=$(docker run --rm alpine sh -c 'apk add --no-cache jq openssl > /dev/null &&   H=$(printf %s "$JWT_SECRET" | xxd -p -c 256);   HEADER=$(echo -n "{"alg":"HS256","typ":"JWT"}" | base64 | tr -d = | tr +/ -_);   PAYLOAD=$(echo -n "{"sub":"demo","exp":$(( $(date +%s) + 3600 ))}" | base64 | tr -d = | tr +/ -_);   SIGN=$(printf "%s.%s" "$HEADER" "$PAYLOAD" | openssl dgst -sha256 -mac HMAC -macopt hexkey:$H -binary | base64 | tr -d = | tr +/ -_);   echo "$HEADER.$PAYLOAD.$SIGN"')
+curl -X POST -H "Authorization: Bearer $TOKEN" -F file=@example.jpg http://localhost:8080/upload
+```
+
+### JWT Configuration
+
+Configure the JWT authentication plugin using the following environment variables:
+
+- `JWT_ALGO`: JWT algorithm to use, either `HS256` or `RS256` (default: `HS256`)
+- `JWT_SECRET`: Secret key for HS256 algorithm (required when using HS256)
+- `JWT_PUBLIC_KEY_FILE`: Path to the public key file for RS256 algorithm (required when using RS256)
+
+### Testing JWT Authentication
+
+Several test scripts are provided to verify the JWT authentication plugin is working correctly:
+
+```bash
+# Run all tests
+./run_all_tests.sh
+
+# Or run individual tests
+./test_jwt_auth.sh       # Test valid JWT token
+./test_invalid_jwt.sh    # Test invalid JWT token
+./test_user_id_header.sh # Test X-User-Id header
+```
+
+For more detailed information about testing the JWT authentication, see [JWT_TESTING.md](JWT_TESTING.md).
+
 ## Environment Variables
 
 All secrets are configured via environment variables with sensible defaults for development:

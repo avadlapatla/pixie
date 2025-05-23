@@ -12,7 +12,15 @@ message Photo {
 message SearchRequest { string query = 1; }
 message SearchResult  { repeated string ids = 1; }
 
+message ValidateTokenRequest { string token = 1; }
+message ValidateTokenResponse {
+  bool ok = 1;
+  string user_id = 2;   // value from "sub" claim
+  string error = 3;     // non‑empty if ok == false
+}
+
 service PhotoPlugin {
   rpc ProcessPhoto(Photo) returns (google.protobuf.Empty);
   rpc Search(SearchRequest) returns (SearchResult);
+  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
 }

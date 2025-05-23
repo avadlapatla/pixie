@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/mux"
 	"pixie/db"
 	"pixie/events"
+	"pixie/http/middleware"
 	"pixie/photo/v1"
 	"pixie/plugin/loader"
 	"pixie/storage"
@@ -70,9 +71,14 @@ func main() {
 
 	// Register routes
 	router.HandleFunc("/healthz", app.healthzHandler).Methods("GET")
-	router.HandleFunc("/upload", app.uploadHandler).Methods("POST")
-	router.HandleFunc("/photo/{id}", app.photoHandler).Methods("GET")
-	router.HandleFunc("/photo/{id}", app.deletePhotoHandler).Methods("DELETE")
+	
+	// Apply auth middleware to all routes except healthz
+	apiRouter := router.PathPrefix("").Subrouter()
+	apiRouter.Use(middleware.Auth)
+	
+	apiRouter.HandleFunc("/upload", app.uploadHandler).Methods("POST")
+	apiRouter.HandleFunc("/photo/{id}", app.photoHandler).Methods("GET")
+	apiRouter.HandleFunc("/photo/{id}", app.deletePhotoHandler).Methods("DELETE")
 
 	// Start the server
 	log.Println("Starting Pixie Core server on :8080")

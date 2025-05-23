@@ -16,5 +16,10 @@ install-golangci-lint:
 proto:
 	buf generate
 
-plugins:
+plugins-auth:
+	cd plugins/authjwt && go build -o ../plugin-authjwt .
+
+plugins-noop:
 	cd plugins/noop && go build -o ../plugin-noop .
+
+plugins: plugins-auth plugins-noop   # ensure existing noop still builds
