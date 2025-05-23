@@ -33,6 +33,23 @@ Once the services are running, you can access them at:
 - **PostgreSQL**: localhost:5432
 - **NATS**: localhost:4222
 
+### API Usage Examples
+
+#### Upload a photo
+
+```bash
+# Upload a photo and get back the ID
+curl -X POST -F "file=@/path/to/your/photo.jpg" http://localhost:8080/upload
+# Response: {"id":"123e4567-e89b-12d3-a456-426614174000"}
+```
+
+#### Download a photo
+
+```bash
+# Download a photo by ID
+curl -o downloaded_photo.jpg http://localhost:8080/photo/123e4567-e89b-12d3-a456-426614174000
+```
+
 ### Default Credentials
 
 #### MinIO
@@ -84,6 +101,11 @@ pixie/
 
 All secrets are configured via environment variables with sensible defaults for development:
 
+- `S3_ENDPOINT`: MinIO/S3 endpoint URL (default: http://minio:9000)
+- `S3_ACCESS_KEY`: MinIO/S3 access key (default: minio)
+- `S3_SECRET_KEY`: MinIO/S3 secret key (default: minio123)
+- `S3_BUCKET`: MinIO/S3 bucket name (default: pixie)
+- `DATABASE_URL`: PostgreSQL connection string (default: postgres://postgres:postgres@postgres:5432/pixie?sslmode=disable)
 - `POSTGRES_USER`: PostgreSQL username (default: pixie)
 - `POSTGRES_PASSWORD`: PostgreSQL password (default: pixiepass)
 - `POSTGRES_DB`: PostgreSQL database name (default: pixiedb)

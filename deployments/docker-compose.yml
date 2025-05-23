@@ -64,15 +64,11 @@ services:
       nats:
         condition: service_healthy
     environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_USER: ${POSTGRES_USER:-pixie}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pixiepass}
-      POSTGRES_DB: ${POSTGRES_DB:-pixiedb}
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-miniopass}
-      NATS_URL: nats://nats:4222
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-miniopass}
+      S3_BUCKET: ${S3_BUCKET:-pixie}
+      DATABASE_URL: postgres://pixie:pixiepass@postgres:5432/pixiedb?sslmode=disable
 
 volumes:
   postgres_data:
