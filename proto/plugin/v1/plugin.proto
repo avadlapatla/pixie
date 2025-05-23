@@ -1,0 +1,18 @@
+syntax = "proto3";
+package plugin.v1;
+
+import "google/protobuf/empty.proto";
+
+message Photo {
+  string id = 1;
+  string s3_key = 2;
+  string mime = 3;
+}
+
+message SearchRequest { string query = 1; }
+message SearchResult  { repeated string ids = 1; }
+
+service PhotoPlugin {
+  rpc ProcessPhoto(Photo) returns (google.protobuf.Empty);
+  rpc Search(SearchRequest) returns (SearchResult);
+}

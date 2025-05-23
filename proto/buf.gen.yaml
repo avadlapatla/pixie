@@ -8,3 +8,11 @@ plugins:
     out: ../core/gen
     opt:
       - paths=source_relative
+  - plugin: go
+    out: ../internal/gen
+    opt:
+      - paths=source_relative
+  - plugin: go-grpc
+    out: ../internal/gen
+    opt:
+      - paths=source_relative

@@ -1,6 +1,6 @@
-.PHONY: dev down lint install-golangci-lint
+.PHONY: dev down lint install-golangci-lint proto plugins
 
-dev:
+dev: plugins
 	docker compose -f deployments/docker-compose.yml up --build
 
 down:
@@ -12,3 +12,9 @@ lint: install-golangci-lint
 install-golangci-lint:
 	@which golangci-lint > /dev/null || (echo "Installing golangci-lint..." && \
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin v1.55.2)
+
+proto:
+	buf generate
+
+plugins:
+	cd plugins/noop && go build -o ../plugin-noop .

@@ -101,15 +101,46 @@ make lint
 ```
 pixie/
   core/             # Core service (Go)
-  plugins/          # Plugin directory (empty for now)
+  plugins/          # Plugin directory
+    noop/           # Example "noop" plugin
   web/              # Web UI directory (empty for now)
   deployments/      # Deployment configurations
     docker-compose.yml
     docker/
       core.Dockerfile
+  proto/            # Protocol buffer definitions
+    plugin/         # Plugin API definitions
   scripts/          # Utility scripts
   Makefile          # Build automation
 ```
+
+## Writing a Plugin
+
+Pixie supports dynamic loading of plugins to extend its functionality. Here's how to create a new plugin:
+
+1. **Copy the proto file**
+   
+   The plugin API is defined in `proto/plugin/v1/plugin.proto`. Copy this file to your plugin project.
+
+2. **Generate stubs**
+   
+   Use `buf generate` to generate Go stubs from the proto file.
+
+3. **Implement the server**
+   
+   Implement the `PhotoPlugin` service defined in the proto file. Your plugin must:
+   - Accept a `--port=0` flag to let the OS choose an available port
+   - Print `PORT=<n>` to stdout after starting
+   - Implement the gRPC Health Check service
+   - Implement the `PhotoPlugin` service methods
+
+4. **Build the binary**
+   
+   Build your plugin and place the binary in the `plugins/` directory. The binary must be executable.
+
+5. **Run Pixie**
+   
+   Run `make dev` to start Pixie with your plugin loaded.
 
 ## Environment Variables
 
