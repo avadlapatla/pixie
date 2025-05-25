@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+**/node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+/build/
+/dist/
+/.next/
+/out/
+
+# Testing
+/coverage/
+
+
+
+# Large data files
+*.csv
+*.xlsx

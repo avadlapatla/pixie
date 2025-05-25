@@ -90,8 +90,12 @@ func loadPlugins(dir string) error {
 			return nil // Continue walking
 		}
 
-		// Skip directories
+		// Skip directories and node_modules
 		if d.IsDir() {
+			// Skip node_modules directories
+			if d.Name() == "node_modules" {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 
@@ -122,6 +126,10 @@ func loadPlugin(path string) error {
 
 	// Start the plugin process
 	cmd := exec.Command(path, "--port=0")
+	
+	// Pass environment variables to the plugin process
+	cmd.Env = os.Environ()
+	
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("failed to create stdout pipe: %w", err)

@@ -1,37 +1,49 @@
-# # Build stage
 FROM golang:1.23-alpine AS builder
 
+# Install build dependencies
+RUN apk add --no-cache git
+
+# Set the working directory
 WORKDIR /app
 
-# Copy go mod files
-COPY core/go.mod core/go.sum ./
+# Copy go.mod and go.sum files
+COPY go.mod go.sum ./
 
 # Download dependencies
 RUN go mod download
 
-# Copy source code
-COPY core/ ./
+# Copy the source code
+COPY . .
 
-# Build the application with static linking
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-s -w" -o pixie-core .
+# Build the application
+WORKDIR /app/core
+RUN go mod tidy && CGO_ENABLED=0 GOOS=linux go build -o ../pixie-core .
 
-# Final stage
-FROM scratch
+# Create a minimal image
+FROM alpine:latest
 
-# Copy the binary from builder
-COPY --from=builder /app/pixie-core /pixie-core
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates tzdata
 
-# Copy CA certificates for HTTPS requests
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+# Set the working directory
+WORKDIR /app
 
-# Copy plugin binaries
-COPY plugins/plugin-* /plugins/
+# Copy the binary from the builder stage
+COPY --from=builder /app/pixie-core .
 
-# Create plugins directory
-WORKDIR /plugins
+# Copy the UI React plugin
+COPY --from=builder /app/plugins/ui-react/dist /plugins/ui-react/dist
 
-# Expose the application port
+# Create directories for plugins and keys
+RUN mkdir -p /plugins /app/keys
+COPY keys/ /app/keys/
+
+# Expose the port
 EXPOSE 8080
 
-# Set the entrypoint
-ENTRYPOINT ["/pixie-core"]
+# Set environment variables
+ENV JWT_ALGO=HS256
+ENV JWT_SECRET=supersecret123
+
+# Run the application
+CMD ["/app/pixie-core"]

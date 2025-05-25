@@ -73,7 +73,7 @@ export const fetchWithAuth = async (
  * Get all photos
  */
 export const getPhotos = async (): Promise<Photo[]> => {
-  const response = await fetchWithAuth('/photos');
+  const response = await fetchWithAuth('/api/photos');
   
   if (!response.ok) {
     throw new Error(`Failed to fetch photos: ${response.statusText}`);
@@ -90,7 +90,7 @@ export const uploadPhoto = async (file: File): Promise<Photo> => {
   const formData = new FormData();
   formData.append('file', file);
   
-  const response = await fetchWithAuth('/upload', {
+  const response = await fetchWithAuth('/api/upload', {
     method: 'POST',
     body: formData,
   });
@@ -106,7 +106,7 @@ export const uploadPhoto = async (file: File): Promise<Photo> => {
  * Delete a photo
  */
 export const deletePhoto = async (id: string): Promise<void> => {
-  const response = await fetchWithAuth(`/photo/${id}`, {
+  const response = await fetchWithAuth(`/api/photo/${id}`, {
     method: 'DELETE',
   });
   
@@ -119,5 +119,5 @@ export const deletePhoto = async (id: string): Promise<void> => {
  * Get the URL for a photo
  */
 export const getPhotoUrl = (id: string): string => {
-  return `${API_BASE}/photo/${id}`;
+  return `${API_BASE}/api/photo/${id}`;
 };

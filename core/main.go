@@ -13,9 +13,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"pixie/auth"
 	"pixie/db"
 	"pixie/events"
-	"pixie/http/middleware"
 	"pixie/photo/v1"
 	"pixie/plugin/loader"
 	"pixie/storage"
@@ -23,11 +23,14 @@ import (
 
 // Config holds the application configuration
 type Config struct {
-	S3Endpoint  string
-	S3AccessKey string
-	S3SecretKey string
-	S3Bucket    string
-	DatabaseURL string
+	S3Endpoint      string
+	S3AccessKey     string
+	S3SecretKey     string
+	S3Bucket        string
+	DatabaseURL     string
+	JWTAlgo         string
+	JWTSecret       string
+	TokenExpiration time.Duration
 }
 
 // App holds the application state
@@ -44,16 +47,20 @@ type App struct {
 		GetObject(ctx context.Context, key string) (*s3.GetObjectOutput, error)
 		DeleteObject(ctx context.Context, key string) error
 	}
+	Auth *auth.Service
 }
 
 func main() {
 	// Load configuration from environment variables
 	config := Config{
-		S3Endpoint:  getEnv("S3_ENDPOINT", "http://minio:9000"),
-		S3AccessKey: getEnv("S3_ACCESS_KEY", "minio"),
-		S3SecretKey: getEnv("S3_SECRET_KEY", "minio123"),
-		S3Bucket:    getEnv("S3_BUCKET", "pixie"),
-		DatabaseURL: getEnv("DATABASE_URL", "postgres://pixie:pixiepass@postgres:5432/pixiedb?sslmode=disable"),
+		S3Endpoint:      getEnv("S3_ENDPOINT", "http://minio:9000"),
+		S3AccessKey:     getEnv("S3_ACCESS_KEY", "minio"),
+		S3SecretKey:     getEnv("S3_SECRET_KEY", "minio123"),
+		S3Bucket:        getEnv("S3_BUCKET", "pixie"),
+		DatabaseURL:     getEnv("DATABASE_URL", "postgres://pixie:pixiepass@postgres:5432/pixiedb?sslmode=disable"),
+		JWTAlgo:         getEnv("JWT_ALGO", "HS256"),
+		JWTSecret:       getEnv("JWT_SECRET", "supersecret123"),
+		TokenExpiration: 24 * time.Hour, // Default to 24 hours
 	}
 
 	// Create a context with timeout for initialization
@@ -70,13 +77,28 @@ func main() {
 	// Initialize mock storage
 	mockStorage := storage.NewMock()
 	
-	// Initialize mock events
-	events.InitMock()
+	// Initialize real NATS events
+	if err := events.Init(); err != nil {
+		log.Printf("Failed to initialize NATS: %v", err)
+		// Continue even if NATS initialization fails
+	}
 	
-	// Initialize plugin loader
+	// Initialize plugin loader (for non-auth plugins)
 	if err := loader.Init(); err != nil {
 		log.Printf("Failed to initialize plugin loader: %v", err)
 		// Continue even if plugin loading fails
+	}
+
+	// Initialize authentication service
+	authService, err := auth.NewService(auth.Config{
+		JWTAlgo:           config.JWTAlgo,
+		JWTSecret:         config.JWTSecret,
+		JWTPublicKeyFile:  getEnv("JWT_PUBLIC_KEY_FILE", ""),
+		JWTPrivateKeyFile: getEnv("JWT_PRIVATE_KEY_FILE", ""),
+		TokenExpiration:   config.TokenExpiration,
+	})
+	if err != nil {
+		log.Fatalf("Failed to initialize authentication service: %v", err)
 	}
 
 	// Create the application with mock DB and Storage
@@ -84,6 +106,7 @@ func main() {
 		Config:  config,
 		DB:      mockDB,
 		Storage: mockStorage,
+		Auth:    authService,
 	}
 
 	// Create a router
@@ -92,14 +115,23 @@ func main() {
 	// Register routes
 	router.HandleFunc("/healthz", app.healthzHandler).Methods("GET")
 	
-	// Apply auth middleware to all routes except healthz
-	apiRouter := router.PathPrefix("").Subrouter()
-	apiRouter.Use(middleware.Auth)
+	// API routes
+	apiRouter := router.PathPrefix("/api").Subrouter()
 	
-	apiRouter.HandleFunc("/upload", app.uploadHandler).Methods("POST")
-	apiRouter.HandleFunc("/photo/{id}", app.photoHandler).Methods("GET")
-	apiRouter.HandleFunc("/photo/{id}", app.deletePhotoHandler).Methods("DELETE")
-	apiRouter.HandleFunc("/photos", app.listPhotosHandler).Methods("GET")
+	// Auth endpoints
+	authRouter := apiRouter.PathPrefix("/auth").Subrouter()
+	authRouter.HandleFunc("/health", app.authHealthHandler).Methods("GET")
+	authRouter.HandleFunc("/token", app.generateTokenHandler).Methods("POST")
+	authRouter.HandleFunc("/revoke", app.revokeTokenHandler).Methods("POST")
+	
+	// Protected endpoints
+	protectedRouter := apiRouter.PathPrefix("").Subrouter()
+	protectedRouter.Use(app.Auth.Middleware)
+	
+	protectedRouter.HandleFunc("/upload", app.uploadHandler).Methods("POST")
+	protectedRouter.HandleFunc("/photo/{id}", app.photoHandler).Methods("GET")
+	protectedRouter.HandleFunc("/photo/{id}", app.deletePhotoHandler).Methods("DELETE")
+	protectedRouter.HandleFunc("/photos", app.listPhotosHandler).Methods("GET")
 
 	// Serve static files from the UI React plugin
 	router.PathPrefix("/").Handler(http.FileServer(http.Dir("/plugins/ui-react/dist")))
@@ -322,6 +354,92 @@ func (app *App) listPhotosHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"photos": photos,
 	})
+}
+
+// authHealthHandler handles the /auth/health endpoint
+func (app *App) authHealthHandler(w http.ResponseWriter, r *http.Request) {
+	if err := app.Auth.HealthCheck(); err != nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		fmt.Fprintf(w, "Auth service unhealthy: %v", err)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, "Auth service healthy")
+}
+
+// TokenRequest represents a request for a new token
+type TokenRequest struct {
+	Subject      string                 `json:"subject"`
+	CustomClaims map[string]interface{} `json:"custom_claims,omitempty"`
+}
+
+// generateTokenHandler handles the /auth/token endpoint
+func (app *App) generateTokenHandler(w http.ResponseWriter, r *http.Request) {
+	// Only allow POST requests
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse the request body
+	var req TokenRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate the request
+	if req.Subject == "" {
+		http.Error(w, "Subject is required", http.StatusBadRequest)
+		return
+	}
+
+	// Generate the token
+	token, err := app.Auth.GenerateToken(req.Subject, req.CustomClaims)
+	if err != nil {
+		log.Printf("Failed to generate token: %v", err)
+		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
+		return
+	}
+
+	// Return the token as JSON
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"token": token,
+	})
+}
+
+// RevokeRequest represents a request to revoke a token
+type RevokeRequest struct {
+	Token string `json:"token"`
+}
+
+// revokeTokenHandler handles the /auth/revoke endpoint
+func (app *App) revokeTokenHandler(w http.ResponseWriter, r *http.Request) {
+	// Only allow POST requests
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse the request body
+	var req RevokeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate the request
+	if req.Token == "" {
+		http.Error(w, "Token is required", http.StatusBadRequest)
+		return
+	}
+
+	// Revoke the token
+	app.Auth.RevokeToken(req.Token)
+
+	// Return success
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // getEnv gets an environment variable or returns a default value

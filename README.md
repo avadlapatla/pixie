@@ -1,231 +1,235 @@
-# Pixie - Lightweight Plugin-based Photo Hosting Service
+# Pixie
 
-Pixie is a lightweight, plugin-based photo hosting service built with Go, MinIO (S3), PostgreSQL (with PostGIS), and NATS JetStream.
+<div align="center">
 
-## Quick Start
+![Pixie Logo](https://via.placeholder.com/150x150.png?text=Pixie)
+
+**A modern, extensible photo management system**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Docker](https://img.shields.io/badge/Docker-Ready-blue)](https://www.docker.com/)
+[![React](https://img.shields.io/badge/React-UI-61dafb)](https://reactjs.org/)
+[![Go](https://img.shields.io/badge/Go-Backend-00ADD8)](https://golang.org/)
+
+</div>
+
+## Overview
+
+Pixie is an open-source photo management system inspired by Google Photos, designed for self-hosting your personal photo collection. It provides a clean, intuitive interface for organizing, viewing, and sharing your photos with powerful search capabilities and an extensible plugin architecture.
+
+## Features
+
+- **Modern UI**: Clean, responsive interface built with React and Tailwind CSS
+- **Secure Authentication**: JWT-based authentication with support for both HS256 and RS256 algorithms
+- **Photo Management**: Upload, organize, view, and delete photos
+- **Thumbnails**: Automatic thumbnail generation for faster browsing
+- **Extensible**: Plugin architecture for adding custom functionality
+- **Docker Support**: Easy deployment with Docker and Docker Compose
+- **API-First Design**: Well-documented REST API for integration with other services
+
+## Screenshots
+
+<div align="center">
+<img src="https://via.placeholder.com/800x450.png?text=Gallery+View" alt="Gallery View" width="80%"/>
+<p><em>Gallery View</em></p>
+
+<img src="https://via.placeholder.com/800x450.png?text=Photo+Detail" alt="Photo Detail" width="80%"/>
+<p><em>Photo Detail View</em></p>
+</div>
+
+## Architecture
+
+Pixie is built with a microservices architecture:
+
+- **Core Service**: Go-based backend that handles HTTP requests and serves the API
+- **Authentication**: Integrated JWT authentication system
+- **Storage**: S3-compatible object storage for photos
+- **Database**: PostgreSQL for metadata storage
+- **Event System**: NATS for event-driven communication between services
+- **Thumbnailer Plugin**: Generates thumbnails for uploaded photos
+- **UI**: React-based frontend for user interaction
+
+## Installation
 
 ### Prerequisites
 
-- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
-- [Go 1.22+](https://golang.org/dl/) (for local development)
-- [Make](https://www.gnu.org/software/make/) (usually pre-installed on macOS/Linux)
+- Docker and Docker Compose
+- Make (for development)
+- Node.js and npm (for UI development)
+- Go 1.23+ (for backend development)
 
-### Installation
+### Quick Start
 
-The easiest way to get started is to run the installation script:
+1. Clone the repository:
 
 ```bash
-./scripts/install.sh
+git clone https://github.com/yourusername/pixie.git
+cd pixie
 ```
 
-Alternatively, you can start the services manually:
+2. Start the services:
 
 ```bash
 make dev
 ```
 
-### Accessing Services
+3. Access the UI at http://localhost:8080
 
-Once the services are running, you can access them at:
+## Configuration
 
-- **Core API**: [http://localhost:8080/healthz](http://localhost:8080/healthz)
-- **MinIO Console**: [http://localhost:9001](http://localhost:9001)
-- **PostgreSQL**: localhost:5432
-- **NATS**: localhost:4222 (client), localhost:8222 (monitoring)
+### Environment Variables
 
-### API Usage Examples
-
-#### Upload a photo
+Create a `.env` file in the root directory based on `.env.example`:
 
 ```bash
-# Upload a photo and get back the ID
-curl -X POST -F "file=@/path/to/your/photo.jpg" http://localhost:8080/upload
-# Response: {"id":"123e4567-e89b-12d3-a456-426614174000"}
+# Copy example environment file
+cp .env.example .env
+
+# Edit with your preferred editor
+nano .env
 ```
 
-#### Download a photo
+### Authentication Configuration
+
+The authentication system can be configured using the following environment variables:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `JWT_ALGO` | JWT algorithm (HS256 or RS256) | HS256 |
+| `JWT_SECRET` | Secret key for HS256 algorithm | supersecret123 |
+| `JWT_PUBLIC_KEY_FILE` | Path to public key for RS256 | |
+| `JWT_PRIVATE_KEY_FILE` | Path to private key for RS256 | |
+
+### Switching JWT Algorithms
 
 ```bash
-# Download a photo by ID
-curl -o downloaded_photo.jpg http://localhost:8080/photo/123e4567-e89b-12d3-a456-426614174000
+# Switch to HS256
+make switch-hs256
+
+# Switch to RS256 (will generate keys if they don't exist)
+make switch-rs256
 ```
 
-#### Delete a photo
+## API Documentation
+
+### Authentication Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/auth/health` | GET | Check authentication service health |
+| `/api/auth/token` | POST | Generate a new JWT token |
+| `/api/auth/revoke` | POST | Revoke a JWT token |
+
+### Photo Management Endpoints
+
+All endpoints require a valid JWT token in the Authorization header.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/photos` | GET | List all photos |
+| `/api/upload` | POST | Upload a new photo |
+| `/api/photo/{id}` | GET | Get a specific photo |
+| `/api/photo/{id}` | DELETE | Delete a specific photo |
+
+### Example: Generating a Token
 
 ```bash
-# Delete a photo by ID
-curl -X DELETE http://localhost:8080/photo/123e4567-e89b-12d3-a456-426614174000
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"subject":"demo"}' \
+  http://localhost:8080/api/auth/token
 ```
 
-#### Watch events
+### Example: Using a Token
 
 ```bash
-# Watch events in another terminal
-docker compose exec nats nats sub "photo.*"
-```
-
-### Default Credentials
-
-#### MinIO
-- Username: `minioadmin`
-- Password: `miniopass`
-
-#### PostgreSQL
-- Username: `pixie`
-- Password: `pixiepass`
-- Database: `pixiedb`
-
-#### NATS
-- No authentication by default in development mode
-
-### Stopping Services
-
-To stop and remove all containers:
-
-```bash
-make down
+curl -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  http://localhost:8080/api/photos
 ```
 
 ## Development
 
-### Linting
-
-To run linters on the Go code:
-
-```bash
-make lint
-```
-
-## Project Structure
+### Project Structure
 
 ```
 pixie/
-  core/             # Core service (Go)
-  plugins/          # Plugin directory
-    noop/           # Example "noop" plugin
-    authjwt/        # JWT authentication plugin
-    ui-react/       # React UI plugin
-  web/              # Web UI directory (empty for now)
-  deployments/      # Deployment configurations
-    docker-compose.yml
-    docker/
-      core.Dockerfile
-  proto/            # Protocol buffer definitions
-    plugin/         # Plugin API definitions
-  scripts/          # Utility scripts
-  Makefile          # Build automation
+├── core/               # Core service (Go)
+│   ├── auth/           # Authentication service
+│   ├── db/             # Database access
+│   ├── events/         # Event system
+│   ├── http/           # HTTP handlers
+│   ├── photo/          # Photo management
+│   ├── plugin/         # Plugin system
+│   └── storage/        # Storage service
+├── plugins/            # Plugin implementations
+│   ├── noop/           # Example no-op plugin
+│   ├── thumbnailer/    # Thumbnail generation plugin
+│   └── ui-react/       # React UI
+├── proto/              # Protocol buffer definitions
+├── deployments/        # Deployment configurations
+│   ├── docker/         # Docker configurations
+│   └── docker-compose.yml
+└── scripts/            # Utility scripts
 ```
 
-## Writing a Plugin
-
-Pixie supports dynamic loading of plugins to extend its functionality. Here's how to create a new plugin:
-
-1. **Copy the proto file**
-   
-   The plugin API is defined in `proto/plugin/v1/plugin.proto`. Copy this file to your plugin project.
-
-2. **Generate stubs**
-   
-   Use `buf generate` to generate Go stubs from the proto file.
-
-3. **Implement the server**
-   
-   Implement the `PhotoPlugin` service defined in the proto file. Your plugin must:
-   - Accept a `--port=0` flag to let the OS choose an available port
-   - Print `PORT=<n>` to stdout after starting
-   - Implement the gRPC Health Check service
-   - Implement the `PhotoPlugin` service methods
-
-4. **Build the binary**
-   
-   Build your plugin and place the binary in the `plugins/` directory. The binary must be executable.
-
-5. **Run Pixie**
-   
-   Run `make dev` to start Pixie with your plugin loaded.
-
-## Authentication
-
-Pixie supports JWT authentication via the auth-jwt plugin. The plugin validates JWT tokens using either HS256 or RS256 algorithms.
+### Building and Running
 
 ```bash
-# Get a test token
-TOKEN=$(docker run --rm alpine sh -c 'apk add --no-cache jq openssl > /dev/null &&   H=$(printf %s "$JWT_SECRET" | xxd -p -c 256);   HEADER=$(echo -n "{"alg":"HS256","typ":"JWT"}" | base64 | tr -d = | tr +/ -_);   PAYLOAD=$(echo -n "{"sub":"demo","exp":$(( $(date +%s) + 3600 ))}" | base64 | tr -d = | tr +/ -_);   SIGN=$(printf "%s.%s" "$HEADER" "$PAYLOAD" | openssl dgst -sha256 -mac HMAC -macopt hexkey:$H -binary | base64 | tr -d = | tr +/ -_);   echo "$HEADER.$PAYLOAD.$SIGN"')
-curl -X POST -H "Authorization: Bearer $TOKEN" -F file=@example.jpg http://localhost:8080/upload
-```
-
-### JWT Configuration
-
-Configure the JWT authentication plugin using the following environment variables:
-
-- `JWT_ALGO`: JWT algorithm to use, either `HS256` or `RS256` (default: `HS256`)
-- `JWT_SECRET`: Secret key for HS256 algorithm (required when using HS256)
-- `JWT_PUBLIC_KEY_FILE`: Path to the public key file for RS256 algorithm (required when using RS256)
-
-### Testing JWT Authentication
-
-Several test scripts are provided to verify the JWT authentication plugin is working correctly:
-
-```bash
-# Run all tests
-./run_all_tests.sh
-
-# Or run individual tests
-./test_jwt_auth.sh       # Test valid JWT token
-./test_invalid_jwt.sh    # Test invalid JWT token
-./test_user_id_header.sh # Test X-User-Id header
-```
-
-For more detailed information about testing the JWT authentication, see [JWT_TESTING.md](JWT_TESTING.md).
-
-## Frontend UI
-
-Pixie includes a React-based UI plugin that provides a web interface for viewing and uploading photos.
-
-### Features
-
-- JWT authentication
-- Photo gallery with responsive grid layout
-- Upload functionality
-- Lightbox for viewing full-size photos
-
-### Development
-
-To develop the UI:
-
-```bash
-# Install dependencies
+# Install UI dependencies
 make ui-deps
 
-# Build the UI
+# Build UI
 make ui-build
+
+# Build plugins
+make plugins
+
+# Start all services
+make dev
+
+# Stop all services
+make down
 ```
 
-For local development with hot reloading:
+### Plugin Development
 
-```bash
-cd plugins/ui-react
-npm install
-npm run dev
-```
+Pixie supports a plugin architecture for extending functionality. Plugins implement the `PhotoPlugin` gRPC service defined in `proto/plugin/v1/plugin.proto`.
 
-### Production Build
+## Troubleshooting
 
-The production build is automatically included when running `make dev`. The UI is served at the root URL of the Pixie server.
+### Common Issues
 
-## Environment Variables
+1. **Authentication Issues**:
+   - Check the health of the auth service: `curl http://localhost:8080/api/auth/health`
+   - Verify your token is valid and not expired
 
-All secrets are configured via environment variables with sensible defaults for development:
+2. **Service Connectivity**:
+   - Check Docker container status: `docker ps`
+   - View service logs: `docker logs pixie-core`
 
-- `S3_ENDPOINT`: MinIO/S3 endpoint URL (default: http://minio:9000)
-- `S3_ACCESS_KEY`: MinIO/S3 access key (default: minio)
-- `S3_SECRET_KEY`: MinIO/S3 secret key (default: minio123)
-- `S3_BUCKET`: MinIO/S3 bucket name (default: pixie)
-- `DATABASE_URL`: PostgreSQL connection string (default: postgres://pixie:pixiepass@postgres:5432/pixiedb?sslmode=disable)
-- `POSTGRES_USER`: PostgreSQL username (default: pixie)
-- `POSTGRES_PASSWORD`: PostgreSQL password (default: pixiepass)
-- `POSTGRES_DB`: PostgreSQL database name (default: pixiedb)
-- `MINIO_ROOT_USER`: MinIO root username (default: minioadmin)
-- `MINIO_ROOT_PASSWORD`: MinIO root password (default: miniopass)
-- `NATS_URL`: NATS server URL (default: nats://nats:4222)
-- `VITE_API_BASE`: API base URL for the React UI (default: http://localhost:8080)
+3. **Upload Problems**:
+   - Ensure S3 storage is properly configured
+   - Check file size limits in your configuration
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+Please make sure your code follows the existing style and includes appropriate tests.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- Inspired by Google Photos
+- Built with [Go](https://golang.org/), [React](https://reactjs.org/), and [Docker](https://www.docker.com/)
+- Uses [NATS](https://nats.io/) for event streaming
+- Uses [PostgreSQL](https://www.postgresql.org/) for metadata storage
+- Uses [MinIO](https://min.io/) for S3-compatible object storage
