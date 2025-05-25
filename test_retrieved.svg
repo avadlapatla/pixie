@@ -1,0 +1,6 @@
+HTTP/1.1 200 OK
+Content-Type: image/svg+xml
+Date: Sun, 25 May 2025 09:50:29 GMT
+Content-Length: 81
+
+<svg width="100" height="100"><rect width="100" height="100" fill="blue"/></svg>

@@ -63,19 +63,33 @@ func main() {
 		TokenExpiration: 24 * time.Hour, // Default to 24 hours
 	}
 
-	// Create a context with timeout for initialization
-	// Commented out as it's not currently used
-	// ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	// defer cancel()
 
-	// Initialize mock implementations for testing
-	log.Println("Initializing mock implementations for testing")
+	// Initialize implementations
+	log.Println("Initializing implementations")
 	
-	// Initialize mock database
-	mockDB := db.NewMock()
+	// Initialize database
+	dbInstance, err := db.New(context.Background(), db.Config{
+		URL: config.DatabaseURL,
+	})
+	if err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
 	
-	// Initialize mock storage
-	mockStorage := storage.NewMock()
+	// Initialize the database schema
+	if err := dbInstance.InitSchema(context.Background()); err != nil {
+		log.Fatalf("Failed to initialize database schema: %v", err)
+	}
+	
+	// Initialize S3 storage
+	s3Storage, err := storage.New(context.Background(), storage.Config{
+		Endpoint:  config.S3Endpoint,
+		AccessKey: config.S3AccessKey,
+		SecretKey: config.S3SecretKey,
+		Bucket:    config.S3Bucket,
+	})
+	if err != nil {
+		log.Fatalf("Failed to initialize S3 storage: %v", err)
+	}
 	
 	// Initialize real NATS events
 	if err := events.Init(); err != nil {
@@ -101,11 +115,11 @@ func main() {
 		log.Fatalf("Failed to initialize authentication service: %v", err)
 	}
 
-	// Create the application with mock DB and Storage
+	// Create the application with DB and Storage
 	app := &App{
 		Config:  config,
-		DB:      mockDB,
-		Storage: mockStorage,
+		DB:      dbInstance,
+		Storage: s3Storage,
 		Auth:    authService,
 	}
 
