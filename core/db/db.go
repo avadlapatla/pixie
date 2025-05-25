@@ -116,3 +116,40 @@ func (db *DB) DeletePhoto(ctx context.Context, id string) error {
 
 	return nil
 }
+
+// Photo represents a photo in the database
+type Photo struct {
+	ID        string    `json:"id"`
+	S3Key     string    `json:"s3_key"`
+	Filename  string    `json:"filename"`
+	Mime      string    `json:"mime"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// ListPhotos retrieves all photos from the database
+func (db *DB) ListPhotos(ctx context.Context) ([]Photo, error) {
+	rows, err := db.Pool.Query(ctx, `
+		SELECT id, s3_key, filename, mime, created_at
+		FROM photos
+		ORDER BY created_at DESC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query photos: %w", err)
+	}
+	defer rows.Close()
+
+	var photos []Photo
+	for rows.Next() {
+		var photo Photo
+		if err := rows.Scan(&photo.ID, &photo.S3Key, &photo.Filename, &photo.Mime, &photo.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan photo: %w", err)
+		}
+		photos = append(photos, photo)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating photos: %w", err)
+	}
+
+	return photos, nil
+}

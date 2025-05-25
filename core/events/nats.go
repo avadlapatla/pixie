@@ -12,6 +12,8 @@ import (
 
 var (
 	js nats.JetStreamContext
+	// DefaultPublish is the default implementation of the Publish function
+	DefaultPublish PublishFunc
 )
 
 // Init initializes the NATS connection and JetStream
@@ -56,11 +58,17 @@ func Init() error {
 	return nil
 }
 
-// Publish publishes a message to the specified subject
-func Publish(ctx context.Context, subj string, data []byte) error {
+// DefaultPublishImpl is the default implementation of the Publish function
+func DefaultPublishImpl(ctx context.Context, subj string, data []byte) error {
 	// Create a context with timeout
 	publishCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+
+	// If js is nil, log a warning and return nil
+	if js == nil {
+		log.Printf("Warning: NATS JetStream not initialized, message to %s not published", subj)
+		return nil
+	}
 
 	// Publish the message
 	_, err := js.Publish(subj, data, nats.Context(publishCtx))
@@ -69,6 +77,14 @@ func Publish(ctx context.Context, subj string, data []byte) error {
 	}
 
 	return nil
+}
+
+// Initialize the Publish variable with the default implementation
+func init() {
+	// Set the default implementation
+	DefaultPublish = DefaultPublishImpl
+	// Set the current implementation to the default
+	Publish = DefaultPublish
 }
 
 // getEnv gets an environment variable or returns a default value

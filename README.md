@@ -103,6 +103,8 @@ pixie/
   core/             # Core service (Go)
   plugins/          # Plugin directory
     noop/           # Example "noop" plugin
+    authjwt/        # JWT authentication plugin
+    ui-react/       # React UI plugin
   web/              # Web UI directory (empty for now)
   deployments/      # Deployment configurations
     docker-compose.yml
@@ -176,6 +178,41 @@ Several test scripts are provided to verify the JWT authentication plugin is wor
 
 For more detailed information about testing the JWT authentication, see [JWT_TESTING.md](JWT_TESTING.md).
 
+## Frontend UI
+
+Pixie includes a React-based UI plugin that provides a web interface for viewing and uploading photos.
+
+### Features
+
+- JWT authentication
+- Photo gallery with responsive grid layout
+- Upload functionality
+- Lightbox for viewing full-size photos
+
+### Development
+
+To develop the UI:
+
+```bash
+# Install dependencies
+make ui-deps
+
+# Build the UI
+make ui-build
+```
+
+For local development with hot reloading:
+
+```bash
+cd plugins/ui-react
+npm install
+npm run dev
+```
+
+### Production Build
+
+The production build is automatically included when running `make dev`. The UI is served at the root URL of the Pixie server.
+
 ## Environment Variables
 
 All secrets are configured via environment variables with sensible defaults for development:
@@ -191,3 +228,4 @@ All secrets are configured via environment variables with sensible defaults for 
 - `MINIO_ROOT_USER`: MinIO root username (default: minioadmin)
 - `MINIO_ROOT_PASSWORD`: MinIO root password (default: miniopass)
 - `NATS_URL`: NATS server URL (default: nats://nats:4222)
+- `VITE_API_BASE`: API base URL for the React UI (default: http://localhost:8080)

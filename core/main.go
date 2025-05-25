@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"pixie/db"
@@ -32,8 +33,17 @@ type Config struct {
 // App holds the application state
 type App struct {
 	Config  Config
-	DB      *db.DB
-	Storage *storage.S3
+	DB      interface {
+		SavePhoto(ctx context.Context, id, s3Key, filename, mime string) error
+		GetPhoto(ctx context.Context, id string) (string, string, error)
+		DeletePhoto(ctx context.Context, id string) error
+		ListPhotos(ctx context.Context) ([]db.Photo, error)
+	}
+	Storage interface {
+		UploadObject(ctx context.Context, key string, data io.Reader, contentType string) error
+		GetObject(ctx context.Context, key string) (*s3.GetObjectOutput, error)
+		DeleteObject(ctx context.Context, key string) error
+	}
 }
 
 func main() {
@@ -47,11 +57,21 @@ func main() {
 	}
 
 	// Create a context with timeout for initialization
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	// Commented out as it's not currently used
+	// ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// defer cancel()
 
-	// For testing purposes, skip database, storage, and NATS initialization
-	log.Println("Skipping database, storage, and NATS initialization for testing")
+	// Initialize mock implementations for testing
+	log.Println("Initializing mock implementations for testing")
+	
+	// Initialize mock database
+	mockDB := db.NewMock()
+	
+	// Initialize mock storage
+	mockStorage := storage.NewMock()
+	
+	// Initialize mock events
+	events.InitMock()
 	
 	// Initialize plugin loader
 	if err := loader.Init(); err != nil {
@@ -59,11 +79,11 @@ func main() {
 		// Continue even if plugin loading fails
 	}
 
-	// Create the application with nil DB and Storage for testing
+	// Create the application with mock DB and Storage
 	app := &App{
 		Config:  config,
-		DB:      nil,
-		Storage: nil,
+		DB:      mockDB,
+		Storage: mockStorage,
 	}
 
 	// Create a router
@@ -79,6 +99,10 @@ func main() {
 	apiRouter.HandleFunc("/upload", app.uploadHandler).Methods("POST")
 	apiRouter.HandleFunc("/photo/{id}", app.photoHandler).Methods("GET")
 	apiRouter.HandleFunc("/photo/{id}", app.deletePhotoHandler).Methods("DELETE")
+	apiRouter.HandleFunc("/photos", app.listPhotosHandler).Methods("GET")
+
+	// Serve static files from the UI React plugin
+	router.PathPrefix("/").Handler(http.FileServer(http.Dir("/plugins/ui-react/dist")))
 
 	// Start the server
 	log.Println("Starting Pixie Core server on :8080")
@@ -277,6 +301,27 @@ func (app *App) deletePhotoHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Return success
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// listPhotosHandler handles the /photos endpoint
+func (app *App) listPhotosHandler(w http.ResponseWriter, r *http.Request) {
+	// Create a context with timeout
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	// Get all photos from the database
+	photos, err := app.DB.ListPhotos(ctx)
+	if err != nil {
+		log.Printf("Failed to list photos from database: %v", err)
+		http.Error(w, "Failed to list photos", http.StatusInternalServerError)
+		return
+	}
+
+	// Return the photos as JSON
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"photos": photos,
+	})
 }
 
 // getEnv gets an environment variable or returns a default value

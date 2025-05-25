@@ -28,16 +28,30 @@ type SearchResult struct {
 	Ids []string `protobuf:"bytes,1,rep,name=ids,proto3" json:"ids,omitempty"`
 }
 
+// ValidateTokenRequest represents a token validation request
+type ValidateTokenRequest struct {
+	Token string `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+}
+
+// ValidateTokenResponse represents a token validation response
+type ValidateTokenResponse struct {
+	Ok     bool   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	UserId string `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Error  string `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
+}
+
 // PhotoPluginClient is the client API for PhotoPlugin service.
 type PhotoPluginClient interface {
 	ProcessPhoto(ctx interface{}, in *Photo, opts ...interface{}) (*emptypb.Empty, error)
 	Search(ctx interface{}, in *SearchRequest, opts ...interface{}) (*SearchResult, error)
+	ValidateToken(ctx interface{}, in *ValidateTokenRequest, opts ...interface{}) (*ValidateTokenResponse, error)
 }
 
 // PhotoPluginServer is the server API for PhotoPlugin service.
 type PhotoPluginServer interface {
 	ProcessPhoto(interface{}, *Photo) (*emptypb.Empty, error)
 	Search(interface{}, *SearchRequest) (*SearchResult, error)
+	ValidateToken(interface{}, *ValidateTokenRequest) (*ValidateTokenResponse, error)
 }
 
 // NewPhotoPluginClient creates a new PhotoPluginClient
@@ -55,4 +69,8 @@ func (c *photoPluginClient) ProcessPhoto(ctx interface{}, in *Photo, opts ...int
 
 func (c *photoPluginClient) Search(ctx interface{}, in *SearchRequest, opts ...interface{}) (*SearchResult, error) {
 	return &SearchResult{}, nil
+}
+
+func (c *photoPluginClient) ValidateToken(ctx interface{}, in *ValidateTokenRequest, opts ...interface{}) (*ValidateTokenResponse, error) {
+	return &ValidateTokenResponse{}, nil
 }

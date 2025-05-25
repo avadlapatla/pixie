@@ -1,6 +1,6 @@
-.PHONY: dev down lint install-golangci-lint proto plugins
+.PHONY: dev down lint install-golangci-lint proto plugins ui-deps ui-build
 
-dev: plugins
+dev: plugins ui-build
 	docker compose -f deployments/docker-compose.yml up --build
 
 down:
@@ -23,3 +23,9 @@ plugins-noop:
 	cd plugins/noop && go build -o ../plugin-noop .
 
 plugins: plugins-auth plugins-noop   # ensure existing noop still builds
+
+ui-deps:
+	cd plugins/ui-react && npm install
+
+ui-build: ui-deps
+	cd plugins/ui-react && npm run build
