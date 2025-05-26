@@ -7,6 +7,7 @@ import SideNav from './components/SideNav';
 import { SearchProvider, useSearch } from './context/SearchContext';
 import { AlbumsProvider } from './context/AlbumsContext';
 import AlbumsPage from './components/pages/AlbumsPage';
+import TrashPage from './components/pages/TrashPage';
 
 // Lazy load the Lightbox component to reduce initial bundle size
 const Lightbox = lazy(() => import('./components/Lightbox'));
@@ -17,7 +18,9 @@ function AppContent() {
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [newPhoto, setNewPhoto] = useState<Photo | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeView, setActiveView] = useState<'photos' | 'albums'>('photos');
+  const [activeView, setActiveView] = useState<'photos' | 'albums' | 'trash'>('photos');
+  // Use this to trigger a refresh when a photo is trashed
+  const [galleryRefreshTrigger, setGalleryRefreshTrigger] = useState<number>(0);
   const { searchQuery, setSearchQuery } = useSearch();
 
   const handleLogin = (e: React.FormEvent) => {
@@ -59,7 +62,7 @@ function AppContent() {
     setSidebarOpen(!sidebarOpen);
   };
 
-  const handleNavigation = (view: 'photos' | 'albums') => {
+  const handleNavigation = (view: 'photos' | 'albums' | 'trash') => {
     setActiveView(view);
     if (window.innerWidth < 1024) { // On mobile
       setSidebarOpen(false);
@@ -148,7 +151,7 @@ function AppContent() {
       {/* Main Content */}
       <main className={`transition-all duration-300 ${sidebarOpen ? 'lg:ml-64' : ''}`}>
         <div className="container mx-auto px-4 py-6">
-          {activeView === 'photos' ? (
+          {activeView === 'photos' && (
             <>
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 space-y-4 md:space-y-0">
                 <h2 className="text-2xl font-medium text-gray-800">
@@ -162,10 +165,15 @@ function AppContent() {
                 newPhoto={newPhoto} 
                 searchQuery={searchQuery}
                 onDeletePhoto={handleDeletePhoto}
+                refreshTrigger={galleryRefreshTrigger}
               />
             </>
-          ) : (
+          )}
+          {activeView === 'albums' && (
             <AlbumsPage onPhotoClick={handlePhotoClick} />
+          )}
+          {activeView === 'trash' && (
+            <TrashPage onPhotoClick={handlePhotoClick} />
           )}
         </div>
       </main>
@@ -180,6 +188,7 @@ function AppContent() {
           photo={selectedPhoto} 
           onClose={closeLightbox} 
           onDelete={handleDeletePhoto}
+          onTrash={() => setGalleryRefreshTrigger(prev => prev + 1)}
         />
       </Suspense>
     </div>

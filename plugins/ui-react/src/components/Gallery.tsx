@@ -7,9 +7,10 @@ interface GalleryProps {
   newPhoto: Photo | null;
   searchQuery?: string;
   onDeletePhoto?: (photoId: string) => void;
+  refreshTrigger?: number;
 }
 
-const Gallery = ({ onPhotoClick, newPhoto, searchQuery = "", onDeletePhoto }: GalleryProps) => {
+const Gallery = ({ onPhotoClick, newPhoto, searchQuery = "", onDeletePhoto, refreshTrigger = 0 }: GalleryProps) => {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [filteredPhotos, setFilteredPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,7 +32,7 @@ const Gallery = ({ onPhotoClick, newPhoto, searchQuery = "", onDeletePhoto }: Ga
     };
 
     fetchPhotos();
-  }, []);
+  }, [refreshTrigger]); // Refetch when refreshTrigger changes
 
   // Add new photo to the gallery when it's uploaded
   useEffect(() => {

@@ -1,8 +1,8 @@
 interface SideNavProps {
   isOpen: boolean;
   onClose: () => void;
-  activeView: 'photos' | 'albums';
-  onNavigate: (view: 'photos' | 'albums') => void;
+  activeView: 'photos' | 'albums' | 'trash';
+  onNavigate: (view: 'photos' | 'albums' | 'trash') => void;
 }
 
 const SideNav = ({ isOpen, onClose, activeView, onNavigate }: SideNavProps) => {
@@ -105,9 +105,17 @@ const SideNav = ({ isOpen, onClose, activeView, onNavigate }: SideNavProps) => {
             <li>
               <a
                 href="#"
-                className="flex items-center px-4 py-3 text-gray-700 hover:bg-blue-50 transition-colors border-l-4 border-transparent"
+                className={`flex items-center px-4 py-3 text-gray-700 hover:bg-blue-50 transition-colors border-l-4 ${
+                  activeView === 'trash' ? 'border-blue-600 bg-blue-50' : 'border-transparent'
+                }`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onNavigate('trash');
+                }}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-3 ${
+                  activeView === 'trash' ? 'text-blue-600' : 'text-gray-500'
+                }`} viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
                 </svg>
                 Trash

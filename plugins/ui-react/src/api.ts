@@ -20,6 +20,8 @@ export interface Photo {
   filename: string;
   mime: string;
   created_at: string;
+  deleted_at?: string;
+  status?: string;
   meta?: {
     thumbnails?: {
       [size: string]: string;
@@ -108,7 +110,76 @@ export const uploadPhoto = async (file: File): Promise<Photo> => {
 };
 
 /**
- * Delete a photo
+ * Move a photo to trash
+ */
+export const trashPhoto = async (id: string): Promise<void> => {
+  const response = await fetchWithAuth(`/api/photos/trash/${id}`, {
+    method: 'PUT',
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to move photo to trash: ${response.statusText}`);
+  }
+};
+
+/**
+ * Restore a photo from trash
+ */
+export const restorePhoto = async (id: string): Promise<void> => {
+  const response = await fetchWithAuth(`/api/photos/trash/${id}/restore`, {
+    method: 'PUT',
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to restore photo from trash: ${response.statusText}`);
+  }
+};
+
+/**
+ * Permanently delete a photo from trash
+ */
+export const permanentlyDeletePhoto = async (id: string): Promise<void> => {
+  const response = await fetchWithAuth(`/api/photos/trash/${id}`, {
+    method: 'DELETE',
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to delete photo permanently: ${response.statusText}`);
+  }
+};
+
+/**
+ * Get all photos in trash
+ */
+export const getTrash = async (): Promise<Photo[]> => {
+  const response = await fetchWithAuth('/api/photos/trash');
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch trash: ${response.statusText}`);
+  }
+  
+  const data = await response.json();
+  // Ensure we always return an array, even if the API returns null
+  return data.photos || [];
+};
+
+/**
+ * Empty the trash (delete all trashed photos permanently)
+ */
+export const emptyTrash = async (): Promise<{count: number}> => {
+  const response = await fetchWithAuth('/api/photos/trash', {
+    method: 'DELETE',
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to empty trash: ${response.statusText}`);
+  }
+  
+  return response.json();
+};
+
+/**
+ * Delete a photo (this is kept for backward compatibility)
  */
 export const deletePhoto = async (id: string): Promise<void> => {
   const response = await fetchWithAuth(`/api/photo/${id}`, {
@@ -134,19 +205,16 @@ export const getPhotoUrl = (id: string): string => {
  * @returns The thumbnail URL or the original photo URL if no thumbnail is available
  */
 export const getThumbnailUrl = (photo: Photo, size: number = 512): string => {
-  // For debugging
-  console.log('Photo:', photo);
-  console.log('Meta:', photo.meta);
-  
-  // Check if the photo has thumbnails and the requested size
-  if (photo.meta?.thumbnails?.[size.toString()]) {
-    const thumbnailPath = photo.meta.thumbnails[size.toString()];
-    console.log('Thumbnail path:', thumbnailPath);
-    
-    // Return the thumbnail URL - auth header will be added by the fetch interceptor
-    return `${API_BASE}/api/photo/${photo.id}?thumbnail=${size}`;
+  try {
+    // Safely check if the photo has thumbnails for the requested size
+    if (photo && photo.meta && photo.meta.thumbnails && photo.meta.thumbnails[size.toString()]) {
+      // Return the thumbnail URL - auth header will be added by the fetch interceptor
+      return `${API_BASE}/api/photo/${photo.id}?thumbnail=${size}`;
+    }
+  } catch (error) {
+    console.error("Error generating thumbnail URL:", error);
   }
   
   // Fall back to the original photo URL - auth header will be added by the fetch interceptor
-  return getPhotoUrl(photo.id);
+  return getPhotoUrl(photo?.id || '');
 };

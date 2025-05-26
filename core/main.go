@@ -41,6 +41,11 @@ type App struct {
 		GetPhoto(ctx context.Context, id string) (string, string, error)
 		DeletePhoto(ctx context.Context, id string) error
 		ListPhotos(ctx context.Context) ([]db.Photo, error)
+		TrashPhoto(ctx context.Context, id string) error
+		RestorePhoto(ctx context.Context, id string) error
+		ListTrashedPhotos(ctx context.Context) ([]db.Photo, error)
+		EmptyTrash(ctx context.Context) (int64, error)
+		PermanentlyDeletePhoto(ctx context.Context, id string) error
 	}
 	Storage interface {
 		UploadObject(ctx context.Context, key string, data io.Reader, contentType string) error
@@ -146,6 +151,13 @@ func main() {
 	protectedRouter.HandleFunc("/photo/{id}", app.photoHandler).Methods("GET")
 	protectedRouter.HandleFunc("/photo/{id}", app.deletePhotoHandler).Methods("DELETE")
 	protectedRouter.HandleFunc("/photos", app.listPhotosHandler).Methods("GET")
+	
+	// Trash functionality endpoints
+	protectedRouter.HandleFunc("/photos/trash/{id}", app.trashPhotoHandler).Methods("PUT")
+	protectedRouter.HandleFunc("/photos/trash/{id}/restore", app.restorePhotoHandler).Methods("PUT")
+	protectedRouter.HandleFunc("/photos/trash", app.listTrashHandler).Methods("GET")
+	protectedRouter.HandleFunc("/photos/trash", app.emptyTrashHandler).Methods("DELETE")
+	protectedRouter.HandleFunc("/photos/trash/{id}", app.permanentDeletePhotoHandler).Methods("DELETE")
 
 	// Serve static files from the UI React plugin
 	router.PathPrefix("/").Handler(http.FileServer(http.Dir("/plugins/ui-react/dist")))
@@ -530,6 +542,206 @@ func (app *App) revokeTokenHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Revoke the token
 	app.Auth.RevokeToken(req.Token)
+
+	// Return success
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// trashPhotoHandler handles the PUT /photos/trash/:id endpoint (move to trash)
+func (app *App) trashPhotoHandler(w http.ResponseWriter, r *http.Request) {
+	// Create a context with timeout
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	// Get the ID from the URL
+	vars := mux.Vars(r)
+	id := vars["id"]
+	if id == "" {
+		http.Error(w, "Missing ID", http.StatusBadRequest)
+		return
+	}
+
+	// Move the photo to trash
+	if err := app.DB.TrashPhoto(ctx, id); err != nil {
+		log.Printf("Failed to trash photo: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to trash photo: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Return success
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "Photo moved to trash",
+		"id":      id,
+	})
+}
+
+// restorePhotoHandler handles the PUT /photos/trash/:id/restore endpoint
+func (app *App) restorePhotoHandler(w http.ResponseWriter, r *http.Request) {
+	// Create a context with timeout
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	// Get the ID from the URL
+	vars := mux.Vars(r)
+	id := vars["id"]
+	if id == "" {
+		http.Error(w, "Missing ID", http.StatusBadRequest)
+		return
+	}
+
+	// Restore the photo from trash
+	if err := app.DB.RestorePhoto(ctx, id); err != nil {
+		log.Printf("Failed to restore photo: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to restore photo: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Return success
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "Photo restored from trash",
+		"id":      id,
+	})
+}
+
+// listTrashHandler handles the GET /photos/trash endpoint
+func (app *App) listTrashHandler(w http.ResponseWriter, r *http.Request) {
+	// Create a context with timeout
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	// Get all trashed photos from the database
+	photos, err := app.DB.ListTrashedPhotos(ctx)
+	if err != nil {
+		log.Printf("Failed to list trashed photos: %v", err)
+		http.Error(w, "Failed to list trashed photos", http.StatusInternalServerError)
+		return
+	}
+
+	// Return the photos as JSON
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"photos": photos,
+	})
+}
+
+// emptyTrashHandler handles the DELETE /photos/trash endpoint
+func (app *App) emptyTrashHandler(w http.ResponseWriter, r *http.Request) {
+	// Create a context with timeout
+	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	defer cancel()
+
+	// Get all trashed photos to delete their S3 objects
+	photos, err := app.DB.ListTrashedPhotos(ctx)
+	if err != nil {
+		log.Printf("Failed to list trashed photos: %v", err)
+		http.Error(w, "Failed to empty trash", http.StatusInternalServerError)
+		return
+	}
+
+	// Delete all S3 objects for trashed photos
+	for _, photo := range photos {
+		if err := app.Storage.DeleteObject(ctx, photo.S3Key); err != nil {
+			log.Printf("Failed to delete S3 object for photo %s: %v", photo.ID, err)
+			// Continue deleting other photos even if one fails
+		}
+
+		// Check for thumbnails and delete them too
+		if photo.Meta != nil {
+			if thumbnails, ok := photo.Meta["thumbnails"].(map[string]interface{}); ok {
+				for _, thumbKey := range thumbnails {
+					if thumbKeyStr, ok := thumbKey.(string); ok {
+						if err := app.Storage.DeleteObject(ctx, thumbKeyStr); err != nil {
+							log.Printf("Failed to delete thumbnail S3 object: %v", err)
+							// Continue deleting other thumbnails even if one fails
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Empty the trash in the database
+	count, err := app.DB.EmptyTrash(ctx)
+	if err != nil {
+		log.Printf("Failed to empty trash in database: %v", err)
+		http.Error(w, "Failed to empty trash", http.StatusInternalServerError)
+		return
+	}
+
+	// Return success
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message": "Trash emptied",
+		"count":   count,
+	})
+}
+
+// permanentDeletePhotoHandler handles the DELETE /photos/trash/:id endpoint
+func (app *App) permanentDeletePhotoHandler(w http.ResponseWriter, r *http.Request) {
+	// Create a context with timeout
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	// Get the ID from the URL
+	vars := mux.Vars(r)
+	id := vars["id"]
+	if id == "" {
+		http.Error(w, "Missing ID", http.StatusBadRequest)
+		return
+	}
+
+	// Get the photo from the database to get its S3 key
+	trashedPhotos, err := app.DB.ListTrashedPhotos(ctx)
+	if err != nil {
+		log.Printf("Failed to list trashed photos: %v", err)
+		http.Error(w, "Failed to get photo metadata", http.StatusInternalServerError)
+		return
+	}
+
+	// Find the photo with the matching ID
+	var photo *db.Photo
+	for i := range trashedPhotos {
+		if trashedPhotos[i].ID == id {
+			photo = &trashedPhotos[i]
+			break
+		}
+	}
+
+	if photo == nil {
+		log.Printf("Photo not found in trash: %s", id)
+		http.Error(w, "Photo not found in trash", http.StatusNotFound)
+		return
+	}
+
+	// Delete the S3 object
+	if err := app.Storage.DeleteObject(ctx, photo.S3Key); err != nil {
+		log.Printf("Failed to delete S3 object: %v", err)
+		http.Error(w, "Failed to delete photo from storage", http.StatusInternalServerError)
+		return
+	}
+
+	// Check for thumbnails and delete them too
+	if photo.Meta != nil {
+		if thumbnails, ok := photo.Meta["thumbnails"].(map[string]interface{}); ok {
+			for _, thumbKey := range thumbnails {
+				if thumbKeyStr, ok := thumbKey.(string); ok {
+					if err := app.Storage.DeleteObject(ctx, thumbKeyStr); err != nil {
+						log.Printf("Failed to delete thumbnail S3 object: %v", err)
+						// Continue deleting the photo even if thumbnail deletion fails
+					}
+				}
+			}
+		}
+	}
+
+	// Permanently delete the photo from the database
+	if err := app.DB.PermanentlyDeletePhoto(ctx, id); err != nil {
+		log.Printf("Failed to permanently delete photo: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to permanently delete photo: %v", err), http.StatusInternalServerError)
+		return
+	}
 
 	// Return success
 	w.WriteHeader(http.StatusNoContent)
