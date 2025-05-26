@@ -1,11 +1,32 @@
+import { useState, useEffect } from 'react';
+
 interface SideNavProps {
   isOpen: boolean;
   onClose: () => void;
-  activeView: 'photos' | 'albums' | 'trash';
-  onNavigate: (view: 'photos' | 'albums' | 'trash') => void;
+  activeView: 'photos' | 'albums' | 'trash' | 'admin';
+  onNavigate: (view: 'photos' | 'albums' | 'trash' | 'admin') => void;
 }
 
 const SideNav = ({ isOpen, onClose, activeView, onNavigate }: SideNavProps) => {
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Check if user is admin by looking at the JWT token's custom claims
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        // Parse the JWT token (without validation)
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const payload = JSON.parse(window.atob(base64));
+        
+        // Check if user has admin role
+        setIsAdmin(payload.custom && payload.custom.role === 'admin');
+      } catch (error) {
+        console.error('Error parsing JWT token:', error);
+      }
+    }
+  }, []);
   return (
     <>
       {/* Backdrop for mobile */}
@@ -31,6 +52,27 @@ const SideNav = ({ isOpen, onClose, activeView, onNavigate }: SideNavProps) => {
 
         <nav className="flex-1">
           <ul>
+            {isAdmin && (
+              <li>
+                <a
+                  href="#"
+                  className={`flex items-center px-4 py-3 text-gray-700 hover:bg-blue-50 transition-colors border-l-4 ${
+                    activeView === 'admin' ? 'border-blue-600 bg-blue-50' : 'border-transparent'
+                  }`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onNavigate('admin');
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-3 ${
+                    activeView === 'admin' ? 'text-blue-600' : 'text-gray-500'
+                  }`} viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" />
+                  </svg>
+                  Admin Panel
+                </a>
+              </li>
+            )}
             <li>
               <a
                 href="#"

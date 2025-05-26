@@ -73,6 +73,8 @@ func (db *DB) InitSchema(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to create photos table: %w", err)
 	}
+	
+	// Note: User table creation is now handled by the user.Manager
 
 	// Check if deleted_at column exists, add if not
 	var columnExists bool

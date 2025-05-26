@@ -19,6 +19,7 @@ import (
 	"pixie/photo/v1"
 	"pixie/plugin/loader"
 	"pixie/storage"
+	"pixie/user"
 )
 
 // Config holds the application configuration
@@ -52,7 +53,8 @@ type App struct {
 		GetObject(ctx context.Context, key string) (*s3.GetObjectOutput, error)
 		DeleteObject(ctx context.Context, key string) error
 	}
-	Auth *auth.Service
+	Auth    *auth.Service
+	UserMgr *user.Manager
 }
 
 func main() {
@@ -120,12 +122,21 @@ func main() {
 		log.Fatalf("Failed to initialize authentication service: %v", err)
 	}
 
-	// Create the application with DB and Storage
+	// Initialize user manager
+	userMgr := user.NewManager(dbInstance.Pool)
+	
+	// Initialize the user database schema
+	if err := userMgr.InitSchema(context.Background()); err != nil {
+		log.Fatalf("Failed to initialize user schema: %v", err)
+	}
+
+	// Create the application with DB, Storage, and UserMgr
 	app := &App{
 		Config:  config,
 		DB:      dbInstance,
 		Storage: s3Storage,
 		Auth:    authService,
+		UserMgr: userMgr,
 	}
 
 	// Create a router
@@ -142,10 +153,21 @@ func main() {
 	authRouter.HandleFunc("/health", app.authHealthHandler).Methods("GET")
 	authRouter.HandleFunc("/token", app.generateTokenHandler).Methods("POST")
 	authRouter.HandleFunc("/revoke", app.revokeTokenHandler).Methods("POST")
+	authRouter.HandleFunc("/login", app.loginHandler).Methods("POST")
+	authRouter.HandleFunc("/recreate-admin", app.recreateAdminHandler).Methods("POST") // For emergency access recovery
 	
 	// Protected endpoints
 	protectedRouter := apiRouter.PathPrefix("").Subrouter()
 	protectedRouter.Use(app.Auth.Middleware)
+	
+	// User management endpoints (admin only)
+	userRouter := protectedRouter.PathPrefix("/users").Subrouter()
+	userRouter.Use(app.adminMiddleware) // Ensure only admins can access
+	userRouter.HandleFunc("", app.listUsersHandler).Methods("GET")
+	userRouter.HandleFunc("", app.createUserHandler).Methods("POST")
+	userRouter.HandleFunc("/{id}", app.getUserHandler).Methods("GET")
+	userRouter.HandleFunc("/{id}", app.updateUserHandler).Methods("PUT")
+	userRouter.HandleFunc("/{id}", app.deleteUserHandler).Methods("DELETE")
 	
 	protectedRouter.HandleFunc("/upload", app.uploadHandler).Methods("POST")
 	protectedRouter.HandleFunc("/photo/{id}", app.photoHandler).Methods("GET")
@@ -162,6 +184,13 @@ func main() {
 	// Serve static files from the UI React plugin
 	router.PathPrefix("/").Handler(http.FileServer(http.Dir("/plugins/ui-react/dist")))
 
+	// Print login instructions without displaying credentials
+	log.Println("===================================================================")
+	log.Println("User management is enabled!")
+	log.Println("Use the default credentials to log in for the first time")
+	log.Println("Use the admin panel to create additional users and change passwords")
+	log.Println("===================================================================")
+	
 	// Start the server
 	log.Println("Starting Pixie Core server on :8080")
 	if err := http.ListenAndServe(":8080", router); err != nil {
@@ -745,6 +774,276 @@ func (app *App) permanentDeletePhotoHandler(w http.ResponseWriter, r *http.Reque
 
 	// Return success
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// LoginRequest represents a login request
+type LoginRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+// loginHandler handles user login with username/password
+func (app *App) loginHandler(w http.ResponseWriter, r *http.Request) {
+	// Parse the request body
+	var req LoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate the request
+	if req.Username == "" || req.Password == "" {
+		http.Error(w, "Username and password are required", http.StatusBadRequest)
+		return
+	}
+
+	// Log the login attempt for debugging
+	log.Printf("Login attempt for username: %s", req.Username)
+	
+	// Authenticate the user
+	user, err := app.UserMgr.Authenticate(r.Context(), req.Username, req.Password)
+	if err != nil {
+		// Log the authentication failure for debugging
+		log.Printf("Authentication failed for user %s: %v", req.Username, err)
+		// For security, don't reveal specific authentication failure reasons
+		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		return
+	}
+	
+	log.Printf("Authentication successful for user %s (role: %s)", user.Username, user.Role)
+
+	// Check if the user is active
+	if !user.Active {
+		http.Error(w, "Account is inactive", http.StatusForbidden)
+		return
+	}
+
+	// Create custom claims with user information
+	customClaims := map[string]interface{}{
+		"role":      user.Role,
+		"username":  user.Username,
+		"full_name": user.FullName,
+	}
+
+	// Generate the token using the user ID as the subject
+	token, err := app.Auth.GenerateToken(user.ID, customClaims)
+	if err != nil {
+		log.Printf("Failed to generate token: %v", err)
+		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
+		return
+	}
+
+	// Return the token and user info as JSON
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"token": token,
+		"user": map[string]interface{}{
+			"id":        user.ID,
+			"username":  user.Username,
+			"email":     user.Email,
+			"full_name": user.FullName,
+			"role":      user.Role,
+			"active":    user.Active,
+		},
+	})
+}
+
+// adminMiddleware ensures that only admins can access a route
+func (app *App) adminMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Get custom claims from the context (added by the auth middleware)
+		customClaims, ok := r.Context().Value("custom_claims").(map[string]interface{})
+		if !ok {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		// Check the user role
+		role, ok := customClaims["role"].(string)
+		if !ok || role != string(user.RoleAdmin) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+
+		// Call the next handler
+		next.ServeHTTP(w, r)
+	})
+}
+
+// listUsersHandler handles listing all users
+func (app *App) listUsersHandler(w http.ResponseWriter, r *http.Request) {
+	users, err := app.UserMgr.ListUsers(r.Context())
+	if err != nil {
+		log.Printf("Failed to list users: %v", err)
+		http.Error(w, "Failed to list users", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"users": users,
+	})
+}
+
+// createUserHandler handles creating a new user
+func (app *App) createUserHandler(w http.ResponseWriter, r *http.Request) {
+	var req user.CreateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Basic validation
+	if req.Username == "" || req.Password == "" {
+		http.Error(w, "Username and password are required", http.StatusBadRequest)
+		return
+	}
+
+	// Create the user
+	newUser, err := app.UserMgr.CreateUser(r.Context(), req)
+	if err != nil {
+		if err == user.ErrUserAlreadyExists {
+			http.Error(w, "User already exists", http.StatusConflict)
+		} else {
+			log.Printf("Failed to create user: %v", err)
+			http.Error(w, "Failed to create user", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Return the new user
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(newUser)
+}
+
+// getUserHandler handles getting a single user
+func (app *App) getUserHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	if id == "" {
+		http.Error(w, "Missing ID", http.StatusBadRequest)
+		return
+	}
+
+	userData, err := app.UserMgr.GetUser(r.Context(), id)
+	if err != nil {
+		if err == user.ErrUserNotFound {
+			http.Error(w, "User not found", http.StatusNotFound)
+		} else {
+			log.Printf("Failed to get user: %v", err)
+			http.Error(w, "Failed to get user", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(userData)
+}
+
+// updateUserHandler handles updating a user
+func (app *App) updateUserHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	if id == "" {
+		http.Error(w, "Missing ID", http.StatusBadRequest)
+		return
+	}
+
+	var req user.UpdateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	updatedUser, err := app.UserMgr.UpdateUser(r.Context(), id, req)
+	if err != nil {
+		if err == user.ErrUserNotFound {
+			http.Error(w, "User not found", http.StatusNotFound)
+		} else {
+			log.Printf("Failed to update user: %v", err)
+			http.Error(w, "Failed to update user", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(updatedUser)
+}
+
+// deleteUserHandler handles deleting a user
+func (app *App) deleteUserHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	if id == "" {
+		http.Error(w, "Missing ID", http.StatusBadRequest)
+		return
+	}
+
+	// Don't allow deleting the last admin
+	users, err := app.UserMgr.ListUsers(r.Context())
+	if err != nil {
+		log.Printf("Failed to list users: %v", err)
+		http.Error(w, "Failed to delete user", http.StatusInternalServerError)
+		return
+	}
+
+	// Count admins
+	var adminCount int
+	var isAdmin bool
+	for _, u := range users {
+		if u.Role == user.RoleAdmin {
+			adminCount++
+			if u.ID == id {
+				isAdmin = true
+			}
+		}
+	}
+
+	// Check if this is the last admin
+	if isAdmin && adminCount <= 1 {
+		http.Error(w, "Cannot delete the last admin user", http.StatusBadRequest)
+		return
+	}
+
+	// Delete the user
+	err = app.UserMgr.DeleteUser(r.Context(), id)
+	if err != nil {
+		if err == user.ErrUserNotFound {
+			http.Error(w, "User not found", http.StatusNotFound)
+		} else {
+			log.Printf("Failed to delete user: %v", err)
+			http.Error(w, "Failed to delete user", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// recreateAdminHandler handles the /auth/recreate-admin endpoint
+func (app *App) recreateAdminHandler(w http.ResponseWriter, r *http.Request) {
+	// Only allow POST requests
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	log.Println("Recreate admin user request received")
+	
+	// Recreate the admin user
+	if err := app.UserMgr.RecreateAdminUser(r.Context()); err != nil {
+		log.Printf("Failed to recreate admin user: %v", err)
+		http.Error(w, "Failed to recreate admin user", http.StatusInternalServerError)
+		return
+	}
+	
+	// Return success
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Admin user recreated successfully. Default credentials have been set.",
+	})
 }
 
 // getEnv gets an environment variable or returns a default value
