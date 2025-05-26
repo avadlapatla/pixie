@@ -21,8 +21,11 @@ vendor/
 go.work
 go.work.sum
 
-# Go binary
+# Go binaries
 core/pixie
+core/pixie-core
+plugins/plugin-*
+plugins/*/bin/
 
 # Environment files
 .env
@@ -42,6 +45,13 @@ yarn-error.log*
 dist/
 build/
 .cache/
+.vite/
+plugins/ui-react/dist/
+plugins/*/dist/
+plugins/*/build/
+plugins/*/out/
+.next/
+public/dist/
 
 # IDE specific files
 .idea/
@@ -58,3 +68,19 @@ logs/
 # Temporary files
 tmp/
 temp/
+
+# Generated files
+core/gen/
+internal/gen/
+
+# Coverage reports
+coverage/
+.nyc_output/
+*.lcov
+
+# Bundle analysis
+stats.html
+bundle-stats.json
+
+# Docker related
+.docker-compose.*.yml

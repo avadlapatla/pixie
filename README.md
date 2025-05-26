@@ -15,7 +15,7 @@
 
 ## Overview
 
-Pixie is an open-source photo management system inspired by Google Photos, designed for self-hosting your personal photo collection. It provides a clean, intuitive interface for organizing, viewing, and sharing your photos with powerful search capabilities and an extensible plugin architecture.
+Pixie is an open-source photo management system designed for self-hosting your personal photo collection. It provides a clean, intuitive interface for organizing, viewing, and sharing your photos with powerful search capabilities and an extensible plugin architecture.
 
 ## Features
 
@@ -228,7 +228,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Acknowledgments
 
-- Inspired by Google Photos
 - Built with [Go](https://golang.org/), [React](https://reactjs.org/), and [Docker](https://www.docker.com/)
 - Uses [NATS](https://nats.io/) for event streaming
 - Uses [PostgreSQL](https://www.postgresql.org/) for metadata storage
