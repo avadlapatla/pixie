@@ -29,8 +29,12 @@ type Config struct {
 
 // New creates a new S3 client
 func New(ctx context.Context, config Config) (*S3, error) {
+	// Log the MinIO endpoint for debugging
+	fmt.Printf("Connecting to MinIO at: %s\n", config.Endpoint)
+	
 	// Create a custom resolver that routes all requests to the specified endpoint
 	customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+		fmt.Printf("Resolving endpoint for service: %s, region: %s\n", service, region)
 		return aws.Endpoint{
 			URL:               config.Endpoint,
 			HostnameImmutable: true,
@@ -55,6 +59,8 @@ func New(ctx context.Context, config Config) (*S3, error) {
 	// Create an S3 client
 	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
 		o.UsePathStyle = true // MinIO requires path-style addressing
+		// Force the S3 client to use HTTP
+		o.BaseEndpoint = aws.String(config.Endpoint)
 	})
 
 	s3Client := &S3{

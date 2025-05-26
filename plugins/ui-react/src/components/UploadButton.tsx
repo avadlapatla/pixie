@@ -21,6 +21,16 @@ const UploadButton = ({ onUploadSuccess }: UploadButtonProps) => {
       fileInputRef.current.value = '';
     }
 
+    // Validate file type
+    const validImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+    const validVideoTypes = ['video/mp4', 'video/webm', 'video/ogg'];
+    const validTypes = [...validImageTypes, ...validVideoTypes];
+    
+    if (!validTypes.includes(file.type)) {
+      setError('Invalid file type. Please upload an image or video file.');
+      return;
+    }
+
     try {
       setUploading(true);
       setError(null);
@@ -47,7 +57,7 @@ const UploadButton = ({ onUploadSuccess }: UploadButtonProps) => {
         type="file"
         ref={fileInputRef}
         onChange={handleUpload}
-        accept="image/*"
+        accept="image/*,video/*"
         className="hidden"
       />
       <button

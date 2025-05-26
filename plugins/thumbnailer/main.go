@@ -331,13 +331,18 @@ func (t *Thumbnailer) processMessage(msg *nats.Msg) error {
 	}
 
 	// Update the database
-	_, err = t.dbPool.Exec(context.Background(), `
+	sizeStr := strconv.Itoa(t.config.ThumbnailSize)
+	
+	query := `
 		UPDATE photos
-		SET meta = COALESCE(meta, '{}'::jsonb) || jsonb_build_object('thumbnails', 
+		SET meta = jsonb_set(
+			COALESCE(meta, '{}'::jsonb),
+			'{thumbnails}',
 			COALESCE(meta->'thumbnails', '{}'::jsonb) || jsonb_build_object($1, $2)
 		)
 		WHERE id = $3
-	`, strconv.Itoa(t.config.ThumbnailSize), thumbnailKey, event.Id)
+	`
+	_, err = t.dbPool.Exec(context.Background(), query, sizeStr, thumbnailKey, event.Id)
 	if err != nil {
 		return fmt.Errorf("failed to update database: %w", err)
 	}
@@ -355,8 +360,8 @@ func main() {
 	config := Config{
 		NatsURL:       getEnv("NATS_URL", "nats://nats:4222"),
 		S3Endpoint:    getEnv("S3_ENDPOINT", "http://minio:9000"),
-		S3AccessKey:   getEnv("S3_ACCESS_KEY", "minioadmin"),
-		S3SecretKey:   getEnv("S3_SECRET_KEY", "miniopass"),
+		S3AccessKey:   getEnv("S3_ACCESS_KEY", "minio"),
+		S3SecretKey:   getEnv("S3_SECRET_KEY", "minio123"),
 		S3Bucket:      getEnv("S3_BUCKET", "pixie"),
 		DatabaseURL:   getEnv("DATABASE_URL", "postgres://pixie:pixiepass@postgres:5432/pixiedb?sslmode=disable"),
 		NumWorkers:    getIntEnv("THUMB_WORKERS", 4),

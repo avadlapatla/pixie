@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Photo, getPhotos, getPhotoUrl } from '../api';
+import { Photo, getPhotos, getThumbnailUrl } from '../api';
+import AuthenticatedImage from './AuthenticatedImage';
 
 interface GalleryProps {
   onPhotoClick: (photo: Photo) => void;
@@ -62,24 +63,32 @@ const Gallery = ({ onPhotoClick, newPhoto }: GalleryProps) => {
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-      {photos.map((photo) => (
-        <div 
-          key={photo.id} 
-          className="bg-white rounded-lg shadow-md overflow-hidden cursor-pointer transform transition-transform hover:scale-105"
-          onClick={() => onPhotoClick(photo)}
-        >
-          <img 
-            src={getPhotoUrl(photo.id)} 
-            alt={photo.filename} 
-            className="w-full h-48 object-cover"
-            loading="lazy"
-          />
-          <div className="p-3">
-            <p className="text-sm text-gray-700 truncate">{photo.filename}</p>
-            <p className="text-xs text-gray-500">{new Date(photo.created_at).toLocaleDateString()}</p>
+      {photos.map((photo) => {
+        const thumbnailUrl = getThumbnailUrl(photo);
+        console.log(`Rendering photo ${photo.id} with URL: ${thumbnailUrl}`);
+        
+        return (
+          <div 
+            key={photo.id} 
+            className="bg-white rounded-lg shadow-md overflow-hidden cursor-pointer transform transition-transform hover:scale-105"
+            onClick={() => onPhotoClick(photo)}
+          >
+            <AuthenticatedImage 
+              src={thumbnailUrl} 
+              alt={photo.filename} 
+              className="w-full h-48 object-cover"
+              onError={(err) => {
+                console.error(`Error loading image: ${thumbnailUrl}`, err);
+              }}
+            />
+            <div className="p-3">
+              <p className="text-sm text-gray-700 truncate">{photo.filename}</p>
+              <p className="text-xs text-gray-500">{new Date(photo.created_at).toLocaleDateString()}</p>
+              <p className="text-xs text-gray-400 truncate">ID: {photo.id}</p>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };

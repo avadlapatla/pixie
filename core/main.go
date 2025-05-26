@@ -253,34 +253,113 @@ func (app *App) photoHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 	if id == "" {
+		log.Printf("Missing photo ID in request")
 		http.Error(w, "Missing ID", http.StatusBadRequest)
 		return
 	}
 
-	// Get the metadata from the database
-	s3Key, mime, err := app.DB.GetPhoto(ctx, id)
+	// Check if a thumbnail size was requested
+	thumbnailSize := r.URL.Query().Get("thumbnail")
+	log.Printf("Request for photo %s with thumbnail size: %s", id, thumbnailSize)
+
+	// Check for token in query parameter (for image requests from <img> tags)
+	tokenParam := r.URL.Query().Get("token")
+	if tokenParam != "" {
+		// Validate the token
+		userId, _, err := app.Auth.ValidateToken(tokenParam)
+		if err != nil {
+			log.Printf("Token validation failed: %v", err)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		log.Printf("User authenticated via query param: %s", userId)
+	} else {
+		// Check if the request is already authenticated via middleware
+		if r.Header.Get("X-User-Id") == "" {
+			log.Printf("Unauthorized access attempt for photo %s", id)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+	}
+
+	// Get the photo from the database
+	photos, err := app.DB.ListPhotos(ctx)
 	if err != nil {
-		log.Printf("Failed to get metadata from database: %v", err)
+		log.Printf("Failed to list photos from database: %v", err)
+		http.Error(w, "Failed to get photo metadata", http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("Found %d photos in database", len(photos))
+
+	// Find the photo with the matching ID
+	var photo *db.Photo
+	for i := range photos {
+		if photos[i].ID == id {
+			photo = &photos[i]
+			break
+		}
+	}
+
+	if photo == nil {
+		log.Printf("Photo not found in database: %s", id)
 		http.Error(w, "Photo not found", http.StatusNotFound)
 		return
 	}
+
+	log.Printf("Found photo: %+v", *photo)
+
+	// Determine which S3 key to use
+	s3Key := photo.S3Key
+	mime := photo.Mime
+
+	// If a thumbnail was requested and exists, use it
+	if thumbnailSize != "" && photo.Meta != nil {
+		log.Printf("Thumbnail requested: %s for photo ID: %s", thumbnailSize, id)
+		log.Printf("Photo meta: %+v", photo.Meta)
+
+		if thumbnails, ok := photo.Meta["thumbnails"].(map[string]interface{}); ok {
+			log.Printf("Thumbnails found: %+v", thumbnails)
+
+			if thumbKey, ok := thumbnails[thumbnailSize].(string); ok {
+				s3Key = thumbKey
+				mime = "image/jpeg" // Thumbnails are always JPEG
+				log.Printf("Using thumbnail: %s", thumbKey)
+			} else {
+				log.Printf("Thumbnail of size %s not found for photo %s", thumbnailSize, id)
+			}
+		} else {
+			log.Printf("No thumbnails found in meta for photo %s", id)
+		}
+	}
+
+	log.Printf("Attempting to retrieve S3 object with key: %s", s3Key)
 
 	// Get the object from S3
 	result, err := app.Storage.GetObject(ctx, s3Key)
 	if err != nil {
 		log.Printf("Failed to get object from S3: %v", err)
-		http.Error(w, "Failed to get photo", http.StatusInternalServerError)
+		// Return a more detailed error to help with debugging
+		http.Error(w, fmt.Sprintf("Failed to get photo from storage: %v", err), http.StatusInternalServerError)
 		return
 	}
 	defer result.Body.Close()
 
+	log.Printf("Successfully retrieved S3 object with key: %s", s3Key)
+
 	// Set the content type
 	w.Header().Set("Content-Type", mime)
 
+	// Add cache control headers
+	w.Header().Set("Cache-Control", "public, max-age=86400") // Cache for 24 hours
+
 	// Stream the object to the response
-	if _, err := io.Copy(w, result.Body); err != nil {
+	bytesCopied, err := io.Copy(w, result.Body)
+	if err != nil {
 		log.Printf("Failed to stream object: %v", err)
 		// Can't send an error response here as we've already started writing the response
+	} else {
+		log.Printf("Successfully streamed %d bytes to client for photo %s", bytesCopied, id)
 	}
 }
 

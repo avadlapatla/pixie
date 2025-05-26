@@ -20,6 +20,11 @@ export interface Photo {
   filename: string;
   mime: string;
   created_at: string;
+  meta?: {
+    thumbnails?: {
+      [size: string]: string;
+    };
+  };
 }
 
 /**
@@ -120,4 +125,28 @@ export const deletePhoto = async (id: string): Promise<void> => {
  */
 export const getPhotoUrl = (id: string): string => {
   return `${API_BASE}/api/photo/${id}`;
+};
+
+/**
+ * Get the URL for a photo thumbnail
+ * @param photo The photo object
+ * @param size The thumbnail size (default: 512)
+ * @returns The thumbnail URL or the original photo URL if no thumbnail is available
+ */
+export const getThumbnailUrl = (photo: Photo, size: number = 512): string => {
+  // For debugging
+  console.log('Photo:', photo);
+  console.log('Meta:', photo.meta);
+  
+  // Check if the photo has thumbnails and the requested size
+  if (photo.meta?.thumbnails?.[size.toString()]) {
+    const thumbnailPath = photo.meta.thumbnails[size.toString()];
+    console.log('Thumbnail path:', thumbnailPath);
+    
+    // Return the thumbnail URL - auth header will be added by the fetch interceptor
+    return `${API_BASE}/api/photo/${photo.id}?thumbnail=${size}`;
+  }
+  
+  // Fall back to the original photo URL - auth header will be added by the fetch interceptor
+  return getPhotoUrl(photo.id);
 };

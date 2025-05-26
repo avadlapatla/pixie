@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -63,7 +64,8 @@ func (db *DB) InitSchema(ctx context.Context) error {
 			s3_key TEXT NOT NULL,
 			filename TEXT,
 			mime TEXT,
-			created_at TIMESTAMPTZ DEFAULT NOW()
+			created_at TIMESTAMPTZ DEFAULT NOW(),
+			meta JSONB
 		);
 	`)
 	if err != nil {
@@ -119,17 +121,18 @@ func (db *DB) DeletePhoto(ctx context.Context, id string) error {
 
 // Photo represents a photo in the database
 type Photo struct {
-	ID        string    `json:"id"`
-	S3Key     string    `json:"s3_key"`
-	Filename  string    `json:"filename"`
-	Mime      string    `json:"mime"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        string                 `json:"id"`
+	S3Key     string                 `json:"s3_key"`
+	Filename  string                 `json:"filename"`
+	Mime      string                 `json:"mime"`
+	CreatedAt time.Time              `json:"created_at"`
+	Meta      map[string]interface{} `json:"meta,omitempty"`
 }
 
 // ListPhotos retrieves all photos from the database
 func (db *DB) ListPhotos(ctx context.Context) ([]Photo, error) {
 	rows, err := db.Pool.Query(ctx, `
-		SELECT id, s3_key, filename, mime, created_at
+		SELECT id, s3_key, filename, mime, created_at, meta
 		FROM photos
 		ORDER BY created_at DESC
 	`)
@@ -141,9 +144,18 @@ func (db *DB) ListPhotos(ctx context.Context) ([]Photo, error) {
 	var photos []Photo
 	for rows.Next() {
 		var photo Photo
-		if err := rows.Scan(&photo.ID, &photo.S3Key, &photo.Filename, &photo.Mime, &photo.CreatedAt); err != nil {
+		var meta []byte
+		if err := rows.Scan(&photo.ID, &photo.S3Key, &photo.Filename, &photo.Mime, &photo.CreatedAt, &meta); err != nil {
 			return nil, fmt.Errorf("failed to scan photo: %w", err)
 		}
+		
+		// Parse the meta JSON if it's not null
+		if meta != nil {
+			if err := json.Unmarshal(meta, &photo.Meta); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal meta: %w", err)
+			}
+		}
+		
 		photos = append(photos, photo)
 	}
 
