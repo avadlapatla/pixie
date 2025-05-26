@@ -1,9 +1,11 @@
 interface SideNavProps {
   isOpen: boolean;
   onClose: () => void;
+  activeView: 'photos' | 'albums';
+  onNavigate: (view: 'photos' | 'albums') => void;
 }
 
-const SideNav = ({ isOpen, onClose }: SideNavProps) => {
+const SideNav = ({ isOpen, onClose, activeView, onNavigate }: SideNavProps) => {
   return (
     <>
       {/* Backdrop for mobile */}
@@ -32,9 +34,17 @@ const SideNav = ({ isOpen, onClose }: SideNavProps) => {
             <li>
               <a
                 href="#"
-                className="flex items-center px-4 py-3 text-gray-800 hover:bg-blue-50 transition-colors border-l-4 border-blue-600"
+                className={`flex items-center px-4 py-3 text-gray-800 hover:bg-blue-50 transition-colors border-l-4 ${
+                  activeView === 'photos' ? 'border-blue-600 bg-blue-50' : 'border-transparent'
+                }`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onNavigate('photos');
+                }}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-3 ${
+                  activeView === 'photos' ? 'text-blue-600' : 'text-gray-500'
+                }`} viewBox="0 0 20 20" fill="currentColor">
                   <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" />
                 </svg>
                 Photos
@@ -43,9 +53,17 @@ const SideNav = ({ isOpen, onClose }: SideNavProps) => {
             <li>
               <a
                 href="#"
-                className="flex items-center px-4 py-3 text-gray-700 hover:bg-blue-50 transition-colors border-l-4 border-transparent"
+                className={`flex items-center px-4 py-3 text-gray-700 hover:bg-blue-50 transition-colors border-l-4 ${
+                  activeView === 'albums' ? 'border-blue-600 bg-blue-50' : 'border-transparent'
+                }`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onNavigate('albums');
+                }}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-3 ${
+                  activeView === 'albums' ? 'text-blue-600' : 'text-gray-500'
+                }`} viewBox="0 0 20 20" fill="currentColor">
                   <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
                 </svg>
                 Albums

@@ -5,6 +5,8 @@ import UploadButton from './components/UploadButton';
 import Header from './components/Header';
 import SideNav from './components/SideNav';
 import { SearchProvider, useSearch } from './context/SearchContext';
+import { AlbumsProvider } from './context/AlbumsContext';
+import AlbumsPage from './components/pages/AlbumsPage';
 
 // Lazy load the Lightbox component to reduce initial bundle size
 const Lightbox = lazy(() => import('./components/Lightbox'));
@@ -15,6 +17,7 @@ function AppContent() {
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [newPhoto, setNewPhoto] = useState<Photo | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeView, setActiveView] = useState<'photos' | 'albums'>('photos');
   const { searchQuery, setSearchQuery } = useSearch();
 
   const handleLogin = (e: React.FormEvent) => {
@@ -54,6 +57,13 @@ function AppContent() {
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
+  };
+
+  const handleNavigation = (view: 'photos' | 'albums') => {
+    setActiveView(view);
+    if (window.innerWidth < 1024) { // On mobile
+      setSidebarOpen(false);
+    }
   };
 
   // Close sidebar when clicking outside on mobile
@@ -128,24 +138,35 @@ function AppContent() {
       />
       
       {/* Sidebar */}
-      <SideNav isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <SideNav 
+        isOpen={sidebarOpen} 
+        onClose={() => setSidebarOpen(false)}
+        activeView={activeView}
+        onNavigate={handleNavigation}
+      />
       
       {/* Main Content */}
       <main className={`transition-all duration-300 ${sidebarOpen ? 'lg:ml-64' : ''}`}>
         <div className="container mx-auto px-4 py-6">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 space-y-4 md:space-y-0">
-            <h2 className="text-2xl font-medium text-gray-800">
-              {searchQuery ? `Search results for "${searchQuery}"` : "My Photos"}
-            </h2>
-            <UploadButton onUploadSuccess={handleUploadSuccess} />
-          </div>
-          
-          <Gallery 
-            onPhotoClick={handlePhotoClick} 
-            newPhoto={newPhoto} 
-            searchQuery={searchQuery}
-            onDeletePhoto={handleDeletePhoto}
-          />
+          {activeView === 'photos' ? (
+            <>
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 space-y-4 md:space-y-0">
+                <h2 className="text-2xl font-medium text-gray-800">
+                  {searchQuery ? `Search results for "${searchQuery}"` : "My Photos"}
+                </h2>
+                <UploadButton onUploadSuccess={handleUploadSuccess} />
+              </div>
+              
+              <Gallery 
+                onPhotoClick={handlePhotoClick} 
+                newPhoto={newPhoto} 
+                searchQuery={searchQuery}
+                onDeletePhoto={handleDeletePhoto}
+              />
+            </>
+          ) : (
+            <AlbumsPage onPhotoClick={handlePhotoClick} />
+          )}
         </div>
       </main>
       
@@ -168,7 +189,9 @@ function AppContent() {
 function App() {
   return (
     <SearchProvider>
-      <AppContent />
+      <AlbumsProvider>
+        <AppContent />
+      </AlbumsProvider>
     </SearchProvider>
   );
 }

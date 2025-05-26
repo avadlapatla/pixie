@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16
-    container_name: pixie-postgres
+    container_name: pixie-postgres-dev
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-pixie}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pixiepass}
@@ -18,7 +18,7 @@ services:
 
   minio:
     image: minio/minio:latest
-    container_name: pixie-minio
+    container_name: pixie-minio-dev
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio123}
@@ -36,19 +36,18 @@ services:
 
   nats:
     image: nats:latest
-    container_name: pixie-nats
+    container_name: pixie-nats-dev
     command: --jetstream --http_port 8222
     ports:
       - "4222:4222"
       - "8222:8222"
-    # Disable health check for NATS
 
   core:
     build:
       context: ..
-      dockerfile: deployments/docker/core.Dockerfile
-    image: pixie-core:prod
-    container_name: pixie-core
+      dockerfile: deployments/docker/core.dev.Dockerfile
+    image: pixie-core:dev
+    container_name: pixie-core-dev
     ports:
       - "8080:8080"
     depends_on:
@@ -69,10 +68,15 @@ services:
       JWT_SECRET: ${JWT_SECRET:-supersecret123}
       JWT_PUBLIC_KEY_FILE: ${JWT_PUBLIC_KEY_FILE:-}
       JWT_PRIVATE_KEY_FILE: ${JWT_PRIVATE_KEY_FILE:-}
-      # Override PLUGINS_DIR to point to the mounted plugins directory
       PLUGINS_DIR: /plugins
+      # Enable debug mode for development
+      DEBUG: "true"
     volumes:
+      # Mount the entire project for development
+      - ../:/app
+      # Mount plugins directory
       - ../plugins:/plugins
+      # Mount keys
       - ../keys:/app/keys
     env_file:
       - ../.env

@@ -1,0 +1,43 @@
+# Makefile for optimized Docker builds
+
+# Default target
+.PHONY: help
+help:
+	@echo "Available targets:"
+	@echo "  build-prod    - Build optimized production Docker image"
+	@echo "  build-dev     - Build development Docker image with hot reload"
+	@echo "  run-prod      - Run production Docker containers"
+	@echo "  run-dev       - Run development Docker containers with hot reload"
+	@echo "  clean         - Remove built images"
+
+# Build production image
+.PHONY: build-prod
+build-prod:
+	@echo "Building optimized production Docker image..."
+	docker-compose -f deployments/docker-compose.yml build
+
+# Build development image
+.PHONY: build-dev
+build-dev:
+	@echo "Building development Docker image with hot reload..."
+	docker-compose -f deployments/docker-compose.dev.yml build
+
+# Run production containers
+.PHONY: run-prod
+run-prod:
+	@echo "Starting production containers..."
+	docker-compose -f deployments/docker-compose.yml up
+
+# Run development containers with hot reload
+.PHONY: run-dev
+run-dev:
+	@echo "Starting development containers with hot reload..."
+	docker-compose -f deployments/docker-compose.dev.yml up
+
+# Clean up
+.PHONY: clean
+clean:
+	@echo "Cleaning up Docker images..."
+	docker-compose -f deployments/docker-compose.yml down
+	docker-compose -f deployments/docker-compose.dev.yml down
+	docker rmi pixie-core:prod pixie-core:dev || true

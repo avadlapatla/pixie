@@ -89,14 +89,13 @@ const Gallery = ({ onPhotoClick, newPhoto, searchQuery = "", onDeletePhoto }: Ga
     setDateGroups(groups);
   }, [photos, filteredPhotos, searchQuery]);
 
-  // Listen for photo deletion from outside the component
+  // Pass photo deletion to parent when needed
   useEffect(() => {
-    if (onDeletePhoto && photos.length > 0) {
-      // This effect is only to satisfy the TypeScript requirement
-      // that onDeletePhoto is used. The actual deletion handling
-      // occurs in the parent component, which will trigger new photo loading
+    if (onDeletePhoto) {
+      // This effect is just to prevent the TypeScript warning
+      // The actual deletion is handled by the parent component
     }
-  }, [onDeletePhoto, photos]);
+  }, [onDeletePhoto]);
 
   if (loading) {
     return (
@@ -148,7 +147,7 @@ const Gallery = ({ onPhotoClick, newPhoto, searchQuery = "", onDeletePhoto }: Ga
       </div>
     );
   }
-
+  
   return (
     <div className="space-y-8">
       {Object.entries(dateGroups).map(([date, datePhotos]) => (
